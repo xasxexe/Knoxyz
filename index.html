@@ -10,17 +10,15 @@
   body { background: #000; overflow: hidden; }
   canvas { display: block; position: fixed; top: 0; left: 0; }
   #ui {
-    position: fixed; top: 0; left: 0;
-    width: 100%; height: 100%;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none; z-index: 10;
     font-family: 'Share Tech Mono', monospace;
   }
   #title {
     position: absolute; top: 20px; left: 24px;
-    font-family: 'Orbitron', monospace;
-    font-weight: 900; font-size: 20px;
+    font-family: 'Orbitron', monospace; font-weight: 900; font-size: 20px;
     letter-spacing: 8px; color: #fff;
-    text-shadow: 0 0 20px rgba(100,200,255,0.5);
+    text-shadow: 0 0 20px rgba(100,200,255,0.4);
   }
   #crystals {
     position: absolute; top: 14px; right: 20px;
@@ -28,18 +26,18 @@
   }
   .crow { display: flex; align-items: center; gap: 9px; }
   .ccount { font-family: 'Orbitron', monospace; font-size: 15px; font-weight: 700; min-width: 30px; text-align: right; }
-  .cicon { width: 16px; height: 16px; clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); }
-  .g  { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
-  .gt { color: #00ff88; text-shadow: 0 0 8px #00ff88; }
-  .y  { background: #ffd700; box-shadow: 0 0 10px #ffd700; }
-  .yt { color: #ffd700; text-shadow: 0 0 8px #ffd700; }
-  .p  { background: #bf5fff; box-shadow: 0 0 10px #bf5fff; }
-  .pt { color: #bf5fff; text-shadow: 0 0 8px #bf5fff; }
+  .cicon { width: 14px; height: 14px; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+  .g  { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+  .gt { color: #00ff88; text-shadow: 0 0 6px #00ff88; }
+  .y  { background: #ffd700; box-shadow: 0 0 8px #ffd700; }
+  .yt { color: #ffd700; text-shadow: 0 0 6px #ffd700; }
+  .p  { background: #bf5fff; box-shadow: 0 0 8px #bf5fff; }
+  .pt { color: #bf5fff; text-shadow: 0 0 6px #bf5fff; }
   #minimap {
     position: absolute; bottom: 20px; right: 20px;
     width: 140px; height: 140px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(0,0,0,0.75);
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.8);
   }
 </style>
 </head>
@@ -62,72 +60,58 @@ const mmx    = mmc.getContext('2d');
 mmc.width = mmc.height = 140;
 
 let W, H;
-function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+function resize(){ W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
 resize();
 window.addEventListener('resize', resize);
 
-// ── Config ─────────────────────────────────────────────────────────────────
 const TILE  = 48;
 const CHUNK = 14;
 const CS    = TILE * CHUNK;
 
 const CCOLORS = { g:'#00ff88', y:'#ffd700', p:'#bf5fff' };
-const CSHADOW = { g:'rgba(0,255,136,', y:'rgba(255,215,0,', p:'rgba(191,95,255,' };
 
-// ── State ──────────────────────────────────────────────────────────────────
 const chunks    = new Map();
 const crystals  = [];
 const particles = [];
 const counts    = { g:0, y:0, p:0 };
-const player    = { wx:0, wy:0, r:10, speed:3.4 };
+const player    = { wx:0, wy:0, r:8, speed:3.4 };
 let camX=0, camY=0;
 
 const keys = {};
-window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true;  e.preventDefault(); });
-window.addEventListener('keyup',   e => { keys[e.key.toLowerCase()] = false; });
+window.addEventListener('keydown', e => { keys[e.key.toLowerCase()]=true;  e.preventDefault(); });
+window.addEventListener('keyup',   e => { keys[e.key.toLowerCase()]=false; });
 
 // ── World gen ──────────────────────────────────────────────────────────────
 function chunkKey(cx,cy){ return cx+','+cy; }
 
 function generateChunk(cx,cy){
   const tiles = new Uint8Array(CHUNK*CHUNK); // 0=wall 1=floor
-
-  // random rooms
   const rooms = [];
   const n = 4 + Math.floor(Math.random()*4);
+
   for(let i=0;i<n;i++){
-    const rw = 3 + Math.floor(Math.random()*4);
-    const rh = 3 + Math.floor(Math.random()*4);
-    const rx = 1 + Math.floor(Math.random()*(CHUNK-rw-2));
-    const ry = 1 + Math.floor(Math.random()*(CHUNK-rh-2));
-    rooms.push({ rx,ry,rw,rh, cx:rx+Math.floor(rw/2), cy:ry+Math.floor(rh/2) });
+    const rw = 3+Math.floor(Math.random()*4);
+    const rh = 3+Math.floor(Math.random()*4);
+    const rx = 1+Math.floor(Math.random()*(CHUNK-rw-2));
+    const ry = 1+Math.floor(Math.random()*(CHUNK-rh-2));
+    rooms.push({ cx:rx+Math.floor(rw/2), cy:ry+Math.floor(rh/2) });
     for(let ty=ry;ty<ry+rh;ty++)
       for(let tx=rx;tx<rx+rw;tx++)
         tiles[ty*CHUNK+tx]=1;
   }
 
-  // connect rooms with corridors
+  // L-corridors between rooms
   for(let i=1;i<rooms.length;i++){
     const a=rooms[i-1], b=rooms[i];
-    // horizontal leg
     const x0=Math.min(a.cx,b.cx), x1=Math.max(a.cx,b.cx);
-    for(let x=x0;x<=x1;x++){
-      for(let w=-1;w<=1;w++){
-        const ty=a.cy+w, tx=x;
-        if(tx>=0&&tx<CHUNK&&ty>=0&&ty<CHUNK) tiles[ty*CHUNK+tx]=1;
-      }
-    }
-    // vertical leg
+    for(let x=x0;x<=x1;x++)
+      for(let w=-1;w<=1;w++){ const ty=a.cy+w; if(ty>=0&&ty<CHUNK) tiles[ty*CHUNK+x]=1; }
     const y0=Math.min(a.cy,b.cy), y1=Math.max(a.cy,b.cy);
-    for(let y=y0;y<=y1;y++){
-      for(let w=-1;w<=1;w++){
-        const ty=y, tx=b.cx+w;
-        if(tx>=0&&tx<CHUNK&&ty>=0&&ty<CHUNK) tiles[ty*CHUNK+tx]=1;
-      }
-    }
+    for(let y=y0;y<=y1;y++)
+      for(let w=-1;w<=1;w++){ const tx=b.cx+w; if(tx>=0&&tx<CHUNK) tiles[y*CHUNK+tx]=1; }
   }
 
-  // open edges (3-wide passage at centre of each side)
+  // open 3-wide passage at centre of each edge
   const mid=Math.floor(CHUNK/2);
   for(let d=mid-1;d<=mid+1;d++){
     for(let t=0;t<3;t++){
@@ -138,24 +122,23 @@ function generateChunk(cx,cy){
     }
   }
 
-  // crystals on floor
+  // scatter crystals
   const floor=[];
   for(let i=0;i<CHUNK*CHUNK;i++) if(tiles[i]===1) floor.push(i);
-  const nc = 3+Math.floor(Math.random()*4);
-  const sample = floor.sort(()=>Math.random()-.5).slice(0,nc);
+  const nc=3+Math.floor(Math.random()*4);
   const types=['g','y','p'];
   const cc=[];
-  for(const idx of sample){
+  for(const idx of floor.sort(()=>Math.random()-.5).slice(0,nc)){
     cc.push({
       wx: cx*CS+(idx%CHUNK)*TILE+TILE/2,
       wy: cy*CS+Math.floor(idx/CHUNK)*TILE+TILE/2,
       type: types[Math.floor(Math.random()*3)],
-      r:9, collected:false, phase:Math.random()*Math.PI*2
+      r:6, collected:false
     });
   }
 
-  const data={tiles, crystals:cc};
-  chunks.set(chunkKey(cx,cy), data);
+  const data={tiles,crystals:cc};
+  chunks.set(chunkKey(cx,cy),data);
   crystals.push(...cc);
   return data;
 }
@@ -166,7 +149,8 @@ function getChunk(cx,cy){
   return chunks.get(k);
 }
 
-function tileAt(wx,wy){
+// tileAtWorld — looks up the correct chunk, no clamping artefacts
+function tileAtWorld(wx,wy){
   const cx=Math.floor(wx/CS), cy=Math.floor(wy/CS);
   const d=getChunk(cx,cy);
   const tx=Math.max(0,Math.min(CHUNK-1,Math.floor((wx-cx*CS)/TILE)));
@@ -174,16 +158,25 @@ function tileAt(wx,wy){
   return d.tiles[ty*CHUNK+tx];
 }
 
+// neighbour-aware tile lookup for wall edge detection
+function tileNeighbour(chunkData,cx,cy,tx,ty){
+  if(tx<0)      return getChunk(cx-1,cy).tiles[ty*CHUNK+(CHUNK-1)];
+  if(tx>=CHUNK) return getChunk(cx+1,cy).tiles[ty*CHUNK+0];
+  if(ty<0)      return getChunk(cx,cy-1).tiles[(CHUNK-1)*CHUNK+tx];
+  if(ty>=CHUNK) return getChunk(cx,cy+1).tiles[0*CHUNK+tx];
+  return chunkData.tiles[ty*CHUNK+tx];
+}
+
 // ── Movement ───────────────────────────────────────────────────────────────
 function tryMove(dx,dy){
   const r=player.r-1;
   const nx=player.wx+dx, ny=player.wy+dy;
-  const canX = tileAt(nx+r,player.wy-r)&&tileAt(nx+r,player.wy+r)
-             &&tileAt(nx-r,player.wy-r)&&tileAt(nx-r,player.wy+r);
-  if(canX) player.wx=nx;
-  const canY = tileAt(player.wx+r,ny-r)&&tileAt(player.wx+r,ny+r)
-             &&tileAt(player.wx-r,ny-r)&&tileAt(player.wx-r,ny+r);
-  if(canY) player.wy=ny;
+  if( tileAtWorld(nx+r,player.wy-r) && tileAtWorld(nx+r,player.wy+r) &&
+      tileAtWorld(nx-r,player.wy-r) && tileAtWorld(nx-r,player.wy+r) )
+    player.wx=nx;
+  if( tileAtWorld(player.wx+r,ny-r) && tileAtWorld(player.wx+r,ny+r) &&
+      tileAtWorld(player.wx-r,ny-r) && tileAtWorld(player.wx-r,ny+r) )
+    player.wy=ny;
 }
 
 function updateCamera(){
@@ -191,7 +184,6 @@ function updateCamera(){
   camY+=(player.wy-H/2-camY)*0.1;
 }
 
-// ── Visible chunks ─────────────────────────────────────────────────────────
 function getVisible(){
   const list=[];
   const x0=Math.floor(camX/CS)-1, y0=Math.floor(camY/CS)-1;
@@ -202,137 +194,99 @@ function getVisible(){
   return list;
 }
 
-// ── Wall outline renderer ──────────────────────────────────────────────────
-// Instead of drawing wall tiles, we trace edges between floor and wall
-// and draw them as glowing lines.
-
-function drawWalls(vis){
-  // Collect all wall-edge segments
-  // An edge exists where a floor tile is adjacent to a wall tile.
-  // We draw the shared border as a line segment in screen space.
-
-  // Pass 1: fat glow
-  ctx.save();
-  ctx.lineWidth   = 6;
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-  ctx.shadowColor = '#ffffff';
-  ctx.shadowBlur  = 28;
+// ── Wall renderer ──────────────────────────────────────────────────────────
+// Traces floor↔wall edges across chunk boundaries using neighbour lookup.
+// Two passes: wide soft glow + narrow bright core.
+function buildWallPath(vis){
   ctx.beginPath();
-
   for(const {cx,cy,data} of vis){
     const {tiles}=data;
     const ox=cx*CS-camX, oy=cy*CS-camY;
-
     for(let ty=0;ty<CHUNK;ty++){
       for(let tx=0;tx<CHUNK;tx++){
-        if(tiles[ty*CHUNK+tx]!==1) continue; // only from floor side
+        if(tiles[ty*CHUNK+tx]!==1) continue;
         const sx=ox+tx*TILE, sy=oy+ty*TILE;
-
-        // check each of 4 neighbours — if neighbour is wall, draw that edge
-        // top edge
-        if(ty===0 || tiles[(ty-1)*CHUNK+tx]===0){
-          ctx.moveTo(sx,    sy);
-          ctx.lineTo(sx+TILE,sy);
-        }
-        // bottom edge
-        if(ty===CHUNK-1 || tiles[(ty+1)*CHUNK+tx]===0){
-          ctx.moveTo(sx,    sy+TILE);
-          ctx.lineTo(sx+TILE,sy+TILE);
-        }
-        // left edge
-        if(tx===0 || tiles[ty*CHUNK+(tx-1)]===0){
-          ctx.moveTo(sx,sy);
-          ctx.lineTo(sx,sy+TILE);
-        }
-        // right edge
-        if(tx===CHUNK-1 || tiles[ty*CHUNK+(tx+1)]===0){
-          ctx.moveTo(sx+TILE,sy);
-          ctx.lineTo(sx+TILE,sy+TILE);
-        }
+        if(tileNeighbour(data,cx,cy,tx,ty-1)===0){ ctx.moveTo(sx,sy);       ctx.lineTo(sx+TILE,sy);       }
+        if(tileNeighbour(data,cx,cy,tx,ty+1)===0){ ctx.moveTo(sx,sy+TILE);  ctx.lineTo(sx+TILE,sy+TILE);  }
+        if(tileNeighbour(data,cx,cy,tx-1,ty)===0){ ctx.moveTo(sx,sy);       ctx.lineTo(sx,sy+TILE);       }
+        if(tileNeighbour(data,cx,cy,tx+1,ty)===0){ ctx.moveTo(sx+TILE,sy);  ctx.lineTo(sx+TILE,sy+TILE);  }
       }
     }
   }
+}
+
+function drawWalls(vis){
+  ctx.save();
+
+  // pass 1 — soft wide glow
+  buildWallPath(vis);
+  ctx.lineWidth=10;
+  ctx.strokeStyle='rgba(255,255,255,0.08)';
+  ctx.shadowColor='#ffffff';
+  ctx.shadowBlur=20;
   ctx.stroke();
 
-  // Pass 2: tight bright core
-  ctx.lineWidth   = 2;
-  ctx.strokeStyle = '#ffffff';
-  ctx.shadowColor = '#c8e8ff';
-  ctx.shadowBlur  = 10;
-  ctx.stroke(); // reuse same path
+  // pass 2 — crisp bright line
+  buildWallPath(vis);
+  ctx.lineWidth=2;
+  ctx.strokeStyle='#ffffff';
+  ctx.shadowColor='rgba(200,230,255,0.8)';
+  ctx.shadowBlur=6;
+  ctx.stroke();
 
   ctx.restore();
 }
 
 // ── Crystals ───────────────────────────────────────────────────────────────
-function drawCrystals(t){
+function drawCrystals(){
   for(const c of crystals){
     if(c.collected) continue;
     const sx=c.wx-camX, sy=c.wy-camY;
-    if(sx<-60||sx>W+60||sy<-60||sy>H+60) continue;
-
-    const bob=Math.sin(t*0.0018+c.phase)*3;
+    if(sx<-40||sx>W+40||sy<-40||sy>H+40) continue;
     const col=CCOLORS[c.type];
-
+    const r=c.r;
     ctx.save();
-    ctx.translate(sx, sy+bob);
-    ctx.rotate(t*0.001+c.phase);
-
-    // outer glow halo
-    const g=ctx.createRadialGradient(0,0,0,0,0,c.r*4);
-    g.addColorStop(0, CSHADOW[c.type]+'0.5)');
-    g.addColorStop(1, CSHADOW[c.type]+'0)');
-    ctx.beginPath(); ctx.arc(0,0,c.r*4,0,Math.PI*2);
-    ctx.fillStyle=g; ctx.fill();
-
-    // pentagon shape
+    ctx.translate(sx,sy);
     ctx.beginPath();
-    for(let i=0;i<5;i++){
-      const a=(i/5)*Math.PI*2-Math.PI/2;
-      i===0 ? ctx.moveTo(Math.cos(a)*c.r,Math.sin(a)*c.r)
-             : ctx.lineTo(Math.cos(a)*c.r,Math.sin(a)*c.r);
-    }
+    ctx.moveTo(0,-r); ctx.lineTo(r*0.6,0); ctx.lineTo(0,r); ctx.lineTo(-r*0.6,0);
     ctx.closePath();
     ctx.fillStyle=col;
-    ctx.shadowColor=col; ctx.shadowBlur=24;
-    ctx.fill(); ctx.shadowBlur=0;
+    ctx.shadowColor=col;
+    ctx.shadowBlur=8;
+    ctx.fill();
+    ctx.shadowBlur=0;
     ctx.restore();
   }
 }
 
 // ── Player ─────────────────────────────────────────────────────────────────
-function drawPlayer(t){
+function drawPlayer(){
   const sx=player.wx-camX, sy=player.wy-camY;
-
-  const g=ctx.createRadialGradient(sx,sy,0,sx,sy,player.r*6);
-  g.addColorStop(0,'rgba(80,180,255,0.3)');
-  g.addColorStop(1,'rgba(80,180,255,0)');
-  ctx.beginPath(); ctx.arc(sx,sy,player.r*6,0,Math.PI*2);
-  ctx.fillStyle=g; ctx.fill();
-
-  ctx.beginPath(); ctx.arc(sx,sy,player.r,0,Math.PI*2);
+  ctx.beginPath();
+  ctx.arc(sx,sy,player.r,0,Math.PI*2);
   ctx.fillStyle='#64c8ff';
-  ctx.shadowColor='#64c8ff'; ctx.shadowBlur=28; ctx.fill(); ctx.shadowBlur=0;
-
-  ctx.beginPath(); ctx.arc(sx-2,sy-2,player.r*0.38,0,Math.PI*2);
-  ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fill();
+  ctx.shadowColor='#64c8ff';
+  ctx.shadowBlur=6;
+  ctx.fill();
+  ctx.shadowBlur=0;
 }
 
 // ── Particles ──────────────────────────────────────────────────────────────
 function spawnParticles(wx,wy,col){
-  for(let i=0;i<14;i++){
-    const a=Math.random()*Math.PI*2, sp=1+Math.random()*4;
-    particles.push({x:wx,y:wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color:col,life:1,r:3+Math.random()*3});
+  for(let i=0;i<10;i++){
+    const a=Math.random()*Math.PI*2, sp=0.8+Math.random()*3;
+    particles.push({x:wx,y:wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color:col,life:1,r:2+Math.random()*2});
   }
 }
 
 function updateParticles(){
   for(let i=particles.length-1;i>=0;i--){
     const p=particles[i];
-    p.x+=p.vx; p.y+=p.vy; p.vx*=0.9; p.vy*=0.9; p.life-=0.03;
+    p.x+=p.vx; p.y+=p.vy; p.vx*=0.9; p.vy*=0.9; p.life-=0.04;
     if(p.life<=0){particles.splice(i,1);continue;}
-    ctx.beginPath(); ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);
-    ctx.fillStyle=p.color; ctx.globalAlpha=p.life; ctx.fill(); ctx.globalAlpha=1;
+    ctx.beginPath();
+    ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);
+    ctx.fillStyle=p.color; ctx.globalAlpha=p.life*0.8; ctx.fill(); ctx.globalAlpha=1;
   }
 }
 
@@ -341,7 +295,7 @@ function checkCrystals(){
   for(const c of crystals){
     if(c.collected) continue;
     const dx=c.wx-player.wx, dy=c.wy-player.wy;
-    if(dx*dx+dy*dy<(player.r+c.r+8)**2){
+    if(dx*dx+dy*dy<(player.r+c.r+10)**2){
       c.collected=true; counts[c.type]++;
       spawnParticles(c.wx,c.wy,CCOLORS[c.type]);
       document.getElementById('c'+c.type).textContent=counts[c.type];
@@ -349,53 +303,46 @@ function checkCrystals(){
   }
 }
 
-// ── Minimap ─────────────────────────────────────────────────────────────────
+// ── Minimap ────────────────────────────────────────────────────────────────
 function drawMinimap(vis){
   const MW=mmc.width, MH=mmc.height;
   mmx.clearRect(0,0,MW,MH);
-  mmx.fillStyle='#000';
-  mmx.fillRect(0,0,MW,MH);
+  mmx.fillStyle='#000'; mmx.fillRect(0,0,MW,MH);
 
   const scale=2.2;
   const offX=MW/2-(player.wx/TILE)*scale;
   const offY=MH/2-(player.wy/TILE)*scale;
 
-  // draw floor tiles as faint white
   for(const {cx,cy,data} of vis){
     const {tiles}=data;
     for(let ty=0;ty<CHUNK;ty++) for(let tx=0;tx<CHUNK;tx++){
       if(!tiles[ty*CHUNK+tx]) continue;
-      mmx.fillStyle='rgba(255,255,255,0.14)';
+      mmx.fillStyle='rgba(255,255,255,0.13)';
       mmx.fillRect((cx*CHUNK+tx)*scale+offX,(cy*CHUNK+ty)*scale+offY,scale,scale);
     }
   }
 
-  // crystals
   for(const c of crystals){
     if(c.collected) continue;
     const px=(c.wx/TILE)*scale+offX, py=(c.wy/TILE)*scale+offY;
     if(px<0||px>MW||py<0||py>MH) continue;
-    mmx.beginPath(); mmx.arc(px,py,2,0,Math.PI*2);
+    mmx.beginPath(); mmx.arc(px,py,1.8,0,Math.PI*2);
     mmx.fillStyle=CCOLORS[c.type]; mmx.fill();
   }
 
-  // player
   mmx.beginPath(); mmx.arc(MW/2,MH/2,3,0,Math.PI*2);
   mmx.fillStyle='#64c8ff';
-  mmx.shadowColor='#64c8ff'; mmx.shadowBlur=6; mmx.fill(); mmx.shadowBlur=0;
+  mmx.shadowColor='#64c8ff'; mmx.shadowBlur=4; mmx.fill(); mmx.shadowBlur=0;
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
 for(let cy=-1;cy<=1;cy++) for(let cx=-1;cx<=1;cx++) getChunk(cx,cy);
 
-// place player on first floor tile near centre
 const sc=chunks.get('0,0');
 outer: for(let ty=CHUNK/2-4;ty<=CHUNK/2+4;ty++){
   for(let tx=CHUNK/2-4;tx<=CHUNK/2+4;tx++){
     if(sc.tiles[ty*CHUNK+tx]===1){
-      player.wx=tx*TILE+TILE/2;
-      player.wy=ty*TILE+TILE/2;
-      break outer;
+      player.wx=tx*TILE+TILE/2; player.wy=ty*TILE+TILE/2; break outer;
     }
   }
 }
@@ -411,18 +358,15 @@ function loop(t){
   if(keys['d']||keys['arrowright']) dx+=sp;
   if(dx&&dy){dx*=0.707;dy*=0.707;}
   if(dx||dy) tryMove(dx,dy);
-
   updateCamera();
 
-  // pure black background
-  ctx.fillStyle='#000000';
-  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#000000'; ctx.fillRect(0,0,W,H);
 
   const vis=getVisible();
   drawWalls(vis);
-  drawCrystals(t);
+  drawCrystals();
   updateParticles();
-  drawPlayer(t);
+  drawPlayer();
   checkCrystals();
   drawMinimap(vis);
 
