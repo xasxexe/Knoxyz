@@ -6,561 +6,430 @@
 <title>KNOXYZ</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
-
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: #0a0a0a;
-    overflow: hidden;
-    font-family: 'Share Tech Mono', monospace;
-    color: #fff;
-  }
-
-  canvas {
-    display: block;
-    position: fixed;
-    top: 0; left: 0;
-  }
-
+  body { background: #000; overflow: hidden; }
+  canvas { display: block; position: fixed; top: 0; left: 0; }
   #ui {
-    position: fixed;
-    top: 0; left: 0;
+    position: fixed; top: 0; left: 0;
     width: 100%; height: 100%;
-    pointer-events: none;
-    z-index: 10;
+    pointer-events: none; z-index: 10;
+    font-family: 'Share Tech Mono', monospace;
   }
-
   #title {
-    position: absolute;
-    top: 22px; left: 28px;
+    position: absolute; top: 20px; left: 24px;
     font-family: 'Orbitron', monospace;
-    font-weight: 900;
-    font-size: 22px;
-    letter-spacing: 8px;
-    color: #fff;
-    text-shadow: 0 0 12px rgba(255,255,255,0.4), 0 0 30px rgba(100,200,255,0.15);
+    font-weight: 900; font-size: 20px;
+    letter-spacing: 8px; color: #fff;
+    text-shadow: 0 0 20px rgba(100,200,255,0.5);
   }
-
   #crystals {
-    position: absolute;
-    top: 16px; right: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    align-items: flex-end;
+    position: absolute; top: 14px; right: 20px;
+    display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
   }
-
-  .crystal-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .crystal-count {
-    font-family: 'Orbitron', monospace;
-    font-size: 16px;
-    font-weight: 700;
-    min-width: 32px;
-    text-align: right;
-  }
-
-  .crystal-icon {
-    width: 18px;
-    height: 18px;
-    clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
-  }
-
-  .green { background: #00ff88; box-shadow: 0 0 12px #00ff88, 0 0 24px rgba(0,255,136,0.4); }
-  .green-text { color: #00ff88; text-shadow: 0 0 10px #00ff88; }
-  .yellow { background: #ffd700; box-shadow: 0 0 12px #ffd700, 0 0 24px rgba(255,215,0,0.4); }
-  .yellow-text { color: #ffd700; text-shadow: 0 0 10px #ffd700; }
-  .purple { background: #bf5fff; box-shadow: 0 0 12px #bf5fff, 0 0 24px rgba(191,95,255,0.4); }
-  .purple-text { color: #bf5fff; text-shadow: 0 0 10px #bf5fff; }
-
-  #overlay {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(10,10,10,0.92);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 20;
-    pointer-events: all;
-  }
-
-  #overlay h1 {
-    font-family: 'Orbitron', monospace;
-    font-weight: 900;
-    font-size: clamp(42px, 8vw, 80px);
-    letter-spacing: 12px;
-    color: #fff;
-    text-shadow: 0 0 20px rgba(100,200,255,0.5), 0 0 60px rgba(100,200,255,0.2);
-    margin-bottom: 8px;
-    animation: pulse-glow 3s ease-in-out infinite;
-  }
-
-  @keyframes pulse-glow {
-    0%, 100% { text-shadow: 0 0 20px rgba(100,200,255,0.5), 0 0 60px rgba(100,200,255,0.2); }
-    50% { text-shadow: 0 0 30px rgba(100,200,255,0.8), 0 0 80px rgba(100,200,255,0.4), 0 0 120px rgba(100,200,255,0.1); }
-  }
-
-  #overlay .subtitle {
-    font-size: 11px;
-    letter-spacing: 6px;
-    color: rgba(255,255,255,0.3);
-    margin-bottom: 52px;
-    text-transform: uppercase;
-  }
-
-  #gameover-text {
-    display: none;
-    font-family: 'Orbitron', monospace;
-    font-size: 13px;
-    letter-spacing: 5px;
-    color: rgba(255,80,80,0.9);
-    text-shadow: 0 0 15px rgba(255,80,80,0.5);
-    margin-bottom: 32px;
-    text-transform: uppercase;
-  }
-
-  #last-score {
-    display: none;
-    font-size: 12px;
-    letter-spacing: 3px;
-    color: rgba(255,255,255,0.4);
-    margin-bottom: 40px;
-  }
-
-  #start-btn {
-    background: transparent;
-    border: 1px solid rgba(255,255,255,0.2);
-    color: #fff;
-    font-family: 'Orbitron', monospace;
-    font-size: 12px;
-    letter-spacing: 5px;
-    padding: 14px 40px;
-    cursor: pointer;
-    pointer-events: all;
-    text-transform: uppercase;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-  }
-
-  #start-btn::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: rgba(100,200,255,0.05);
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-  }
-
-  #start-btn:hover::before { transform: translateX(0); }
-  #start-btn:hover {
-    border-color: rgba(100,200,255,0.6);
-    color: rgba(100,200,255,1);
-    text-shadow: 0 0 15px rgba(100,200,255,0.6);
-    box-shadow: 0 0 20px rgba(100,200,255,0.15);
-  }
-
-  .controls-hint {
-    margin-top: 40px;
-    font-size: 10px;
-    letter-spacing: 3px;
-    color: rgba(255,255,255,0.2);
-    text-align: center;
-    line-height: 2;
+  .crow { display: flex; align-items: center; gap: 9px; }
+  .ccount { font-family: 'Orbitron', monospace; font-size: 15px; font-weight: 700; min-width: 30px; text-align: right; }
+  .cicon { width: 16px; height: 16px; clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); }
+  .g  { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+  .gt { color: #00ff88; text-shadow: 0 0 8px #00ff88; }
+  .y  { background: #ffd700; box-shadow: 0 0 10px #ffd700; }
+  .yt { color: #ffd700; text-shadow: 0 0 8px #ffd700; }
+  .p  { background: #bf5fff; box-shadow: 0 0 10px #bf5fff; }
+  .pt { color: #bf5fff; text-shadow: 0 0 8px #bf5fff; }
+  #minimap {
+    position: absolute; bottom: 20px; right: 20px;
+    width: 140px; height: 140px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(0,0,0,0.75);
   }
 </style>
 </head>
 <body>
-
 <canvas id="c"></canvas>
-
 <div id="ui">
   <div id="title">KNOXYZ</div>
   <div id="crystals">
-    <div class="crystal-row">
-      <span class="crystal-count green-text" id="cnt-g">0</span>
-      <div class="crystal-icon green"></div>
-    </div>
-    <div class="crystal-row">
-      <span class="crystal-count yellow-text" id="cnt-y">0</span>
-      <div class="crystal-icon yellow"></div>
-    </div>
-    <div class="crystal-row">
-      <span class="crystal-count purple-text" id="cnt-p">0</span>
-      <div class="crystal-icon purple"></div>
-    </div>
+    <div class="crow"><span class="ccount gt" id="cg">0</span><div class="cicon g"></div></div>
+    <div class="crow"><span class="ccount yt" id="cy">0</span><div class="cicon y"></div></div>
+    <div class="crow"><span class="ccount pt" id="cp">0</span><div class="cicon p"></div></div>
   </div>
+  <canvas id="minimap"></canvas>
 </div>
-
-<div id="overlay">
-  <h1>KNOXYZ</h1>
-  <div class="subtitle">Infinite Corridor Runner</div>
-  <div id="gameover-text">— COLLISION DETECTED —</div>
-  <div id="last-score" id="last-score"></div>
-  <button id="start-btn">INITIALISE</button>
-  <div class="controls-hint">
-    W · A · S · D — MOVE<br>
-    AVOID WALLS · COLLECT CRYSTALS
-  </div>
-</div>
-
 <script>
 const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
+const ctx    = canvas.getContext('2d');
+const mmc    = document.getElementById('minimap');
+const mmx    = mmc.getContext('2d');
+mmc.width = mmc.height = 140;
 
 let W, H;
-function resize() {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
-}
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
 resize();
 window.addEventListener('resize', resize);
 
+// ── Config ─────────────────────────────────────────────────────────────────
+const TILE  = 48;
+const CHUNK = 14;
+const CS    = TILE * CHUNK;
+
+const CCOLORS = { g:'#00ff88', y:'#ffd700', p:'#bf5fff' };
+const CSHADOW = { g:'rgba(0,255,136,', y:'rgba(255,215,0,', p:'rgba(191,95,255,' };
+
 // ── State ──────────────────────────────────────────────────────────────────
+const chunks    = new Map();
+const crystals  = [];
+const particles = [];
+const counts    = { g:0, y:0, p:0 };
+const player    = { wx:0, wy:0, r:10, speed:3.4 };
+let camX=0, camY=0;
+
 const keys = {};
-window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-window.addEventListener('keyup',   e => keys[e.key.toLowerCase()] = false);
+window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true;  e.preventDefault(); });
+window.addEventListener('keyup',   e => { keys[e.key.toLowerCase()] = false; });
 
-let gameRunning = false;
-let player, gameSpeed, scrollOffset, chunks, crystals, counts, particles;
+// ── World gen ──────────────────────────────────────────────────────────────
+function chunkKey(cx,cy){ return cx+','+cy; }
 
-const CHUNK_W = 400;
-const CORRIDOR_H = 180;
-const WALL_THICK = 28;
-const PLAYER_R = 9;
+function generateChunk(cx,cy){
+  const tiles = new Uint8Array(CHUNK*CHUNK); // 0=wall 1=floor
 
-function initGame() {
-  player = { x: 160, y: H / 2, vx: 0, vy: 0 };
-  gameSpeed = 2.2;
-  scrollOffset = 0;
-  counts = { g: 0, y: 0, p: 0 };
-  chunks = [];
-  crystals = [];
-  particles = [];
-  updateUI();
-
-  // seed initial chunks
-  for (let i = 0; i < Math.ceil(W / CHUNK_W) + 3; i++) {
-    spawnChunk(i * CHUNK_W);
+  // random rooms
+  const rooms = [];
+  const n = 4 + Math.floor(Math.random()*4);
+  for(let i=0;i<n;i++){
+    const rw = 3 + Math.floor(Math.random()*4);
+    const rh = 3 + Math.floor(Math.random()*4);
+    const rx = 1 + Math.floor(Math.random()*(CHUNK-rw-2));
+    const ry = 1 + Math.floor(Math.random()*(CHUNK-rh-2));
+    rooms.push({ rx,ry,rw,rh, cx:rx+Math.floor(rw/2), cy:ry+Math.floor(rh/2) });
+    for(let ty=ry;ty<ry+rh;ty++)
+      for(let tx=rx;tx<rx+rw;tx++)
+        tiles[ty*CHUNK+tx]=1;
   }
-}
 
-// ── Chunk / wall generation ────────────────────────────────────────────────
-let chunkX = 0;
-function spawnChunk(startX) {
-  const cy = H / 2 + Math.sin(startX * 0.003) * (H * 0.18);
-  chunks.push({ startX, cy });
-  chunkX = startX + CHUNK_W;
-
-  // spawn 1-2 crystals per chunk
-  const n = Math.random() < 0.5 ? 1 : 2;
-  const types = ['g', 'y', 'p'];
-  for (let i = 0; i < n; i++) {
-    const t = types[Math.floor(Math.random() * 3)];
-    const ox = startX + 80 + Math.random() * (CHUNK_W - 160);
-    const spread = CORRIDOR_H / 2 - 28;
-    const oy = cy + (Math.random() * 2 - 1) * spread;
-    crystals.push({ x: ox, type: t, y: oy, r: 10, collected: false, phase: Math.random() * Math.PI * 2 });
-  }
-}
-
-// ── Render helpers ─────────────────────────────────────────────────────────
-function corridorCY(worldX) {
-  return H / 2 + Math.sin(worldX * 0.003) * (H * 0.18);
-}
-
-function drawWalls() {
-  // gradient wall effect
-  const gradient = ctx.createLinearGradient(0, 0, 0, H);
-
-  // draw top & bottom wall segments per chunk
-  for (const ch of chunks) {
-    const sx = ch.startX - scrollOffset;
-    if (sx > W + 20 || sx + CHUNK_W < -20) continue;
-
-    for (let px = sx; px < sx + CHUNK_W; px += 2) {
-      const worldX = px + scrollOffset;
-      const cy = corridorCY(worldX);
-      const topY = cy - CORRIDOR_H / 2;
-      const botY = cy + CORRIDOR_H / 2;
-
-      // top wall
-      ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.fillRect(px, topY - WALL_THICK, 2, WALL_THICK);
-
-      // bottom wall
-      ctx.fillRect(px, botY, 2, WALL_THICK);
+  // connect rooms with corridors
+  for(let i=1;i<rooms.length;i++){
+    const a=rooms[i-1], b=rooms[i];
+    // horizontal leg
+    const x0=Math.min(a.cx,b.cx), x1=Math.max(a.cx,b.cx);
+    for(let x=x0;x<=x1;x++){
+      for(let w=-1;w<=1;w++){
+        const ty=a.cy+w, tx=x;
+        if(tx>=0&&tx<CHUNK&&ty>=0&&ty<CHUNK) tiles[ty*CHUNK+tx]=1;
+      }
+    }
+    // vertical leg
+    const y0=Math.min(a.cy,b.cy), y1=Math.max(a.cy,b.cy);
+    for(let y=y0;y<=y1;y++){
+      for(let w=-1;w<=1;w++){
+        const ty=y, tx=b.cx+w;
+        if(tx>=0&&tx<CHUNK&&ty>=0&&ty<CHUNK) tiles[ty*CHUNK+tx]=1;
+      }
     }
   }
-}
 
-function wallGlow() {
-  for (const ch of chunks) {
-    const sx = ch.startX - scrollOffset;
-    if (sx > W + 20 || sx + CHUNK_W < -20) continue;
-
-    for (let px = sx; px < sx + CHUNK_W; px += 8) {
-      const worldX = px + scrollOffset;
-      const cy = corridorCY(worldX);
-      const topY = cy - CORRIDOR_H / 2;
-      const botY = cy + CORRIDOR_H / 2;
-
-      // top glow dot
-      ctx.beginPath();
-      ctx.arc(px, topY, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(180,230,255,0.55)';
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(px, botY, 1.5, 0, Math.PI * 2);
-      ctx.fill();
+  // open edges (3-wide passage at centre of each side)
+  const mid=Math.floor(CHUNK/2);
+  for(let d=mid-1;d<=mid+1;d++){
+    for(let t=0;t<3;t++){
+      tiles[t*CHUNK+d]=1;
+      tiles[(CHUNK-1-t)*CHUNK+d]=1;
+      tiles[d*CHUNK+t]=1;
+      tiles[d*CHUNK+(CHUNK-1-t)]=1;
     }
   }
+
+  // crystals on floor
+  const floor=[];
+  for(let i=0;i<CHUNK*CHUNK;i++) if(tiles[i]===1) floor.push(i);
+  const nc = 3+Math.floor(Math.random()*4);
+  const sample = floor.sort(()=>Math.random()-.5).slice(0,nc);
+  const types=['g','y','p'];
+  const cc=[];
+  for(const idx of sample){
+    cc.push({
+      wx: cx*CS+(idx%CHUNK)*TILE+TILE/2,
+      wy: cy*CS+Math.floor(idx/CHUNK)*TILE+TILE/2,
+      type: types[Math.floor(Math.random()*3)],
+      r:9, collected:false, phase:Math.random()*Math.PI*2
+    });
+  }
+
+  const data={tiles, crystals:cc};
+  chunks.set(chunkKey(cx,cy), data);
+  crystals.push(...cc);
+  return data;
 }
 
-function crystalColor(type) {
-  return { g: '#00ff88', y: '#ffd700', p: '#bf5fff' }[type];
-}
-function crystalShadow(type) {
-  return { g: 'rgba(0,255,136,', y: 'rgba(255,215,0,', p: 'rgba(191,95,255,' }[type];
+function getChunk(cx,cy){
+  const k=chunkKey(cx,cy);
+  if(!chunks.has(k)) generateChunk(cx,cy);
+  return chunks.get(k);
 }
 
-function drawCrystals(t) {
-  for (const c of crystals) {
-    if (c.collected) continue;
-    const sx = c.x - scrollOffset;
-    if (sx < -30 || sx > W + 30) continue;
+function tileAt(wx,wy){
+  const cx=Math.floor(wx/CS), cy=Math.floor(wy/CS);
+  const d=getChunk(cx,cy);
+  const tx=Math.max(0,Math.min(CHUNK-1,Math.floor((wx-cx*CS)/TILE)));
+  const ty=Math.max(0,Math.min(CHUNK-1,Math.floor((wy-cy*CS)/TILE)));
+  return d.tiles[ty*CHUNK+tx];
+}
 
-    const bob = Math.sin(t * 0.002 + c.phase) * 3;
-    const col = crystalColor(c.type);
-    const shad = crystalShadow(c.type);
+// ── Movement ───────────────────────────────────────────────────────────────
+function tryMove(dx,dy){
+  const r=player.r-1;
+  const nx=player.wx+dx, ny=player.wy+dy;
+  const canX = tileAt(nx+r,player.wy-r)&&tileAt(nx+r,player.wy+r)
+             &&tileAt(nx-r,player.wy-r)&&tileAt(nx-r,player.wy+r);
+  if(canX) player.wx=nx;
+  const canY = tileAt(player.wx+r,ny-r)&&tileAt(player.wx+r,ny+r)
+             &&tileAt(player.wx-r,ny-r)&&tileAt(player.wx-r,ny+r);
+  if(canY) player.wy=ny;
+}
+
+function updateCamera(){
+  camX+=(player.wx-W/2-camX)*0.1;
+  camY+=(player.wy-H/2-camY)*0.1;
+}
+
+// ── Visible chunks ─────────────────────────────────────────────────────────
+function getVisible(){
+  const list=[];
+  const x0=Math.floor(camX/CS)-1, y0=Math.floor(camY/CS)-1;
+  const x1=Math.floor((camX+W)/CS)+1, y1=Math.floor((camY+H)/CS)+1;
+  for(let cy=y0;cy<=y1;cy++)
+    for(let cx=x0;cx<=x1;cx++)
+      list.push({cx,cy,data:getChunk(cx,cy)});
+  return list;
+}
+
+// ── Wall outline renderer ──────────────────────────────────────────────────
+// Instead of drawing wall tiles, we trace edges between floor and wall
+// and draw them as glowing lines.
+
+function drawWalls(vis){
+  // Collect all wall-edge segments
+  // An edge exists where a floor tile is adjacent to a wall tile.
+  // We draw the shared border as a line segment in screen space.
+
+  // Pass 1: fat glow
+  ctx.save();
+  ctx.lineWidth   = 6;
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.shadowColor = '#ffffff';
+  ctx.shadowBlur  = 28;
+  ctx.beginPath();
+
+  for(const {cx,cy,data} of vis){
+    const {tiles}=data;
+    const ox=cx*CS-camX, oy=cy*CS-camY;
+
+    for(let ty=0;ty<CHUNK;ty++){
+      for(let tx=0;tx<CHUNK;tx++){
+        if(tiles[ty*CHUNK+tx]!==1) continue; // only from floor side
+        const sx=ox+tx*TILE, sy=oy+ty*TILE;
+
+        // check each of 4 neighbours — if neighbour is wall, draw that edge
+        // top edge
+        if(ty===0 || tiles[(ty-1)*CHUNK+tx]===0){
+          ctx.moveTo(sx,    sy);
+          ctx.lineTo(sx+TILE,sy);
+        }
+        // bottom edge
+        if(ty===CHUNK-1 || tiles[(ty+1)*CHUNK+tx]===0){
+          ctx.moveTo(sx,    sy+TILE);
+          ctx.lineTo(sx+TILE,sy+TILE);
+        }
+        // left edge
+        if(tx===0 || tiles[ty*CHUNK+(tx-1)]===0){
+          ctx.moveTo(sx,sy);
+          ctx.lineTo(sx,sy+TILE);
+        }
+        // right edge
+        if(tx===CHUNK-1 || tiles[ty*CHUNK+(tx+1)]===0){
+          ctx.moveTo(sx+TILE,sy);
+          ctx.lineTo(sx+TILE,sy+TILE);
+        }
+      }
+    }
+  }
+  ctx.stroke();
+
+  // Pass 2: tight bright core
+  ctx.lineWidth   = 2;
+  ctx.strokeStyle = '#ffffff';
+  ctx.shadowColor = '#c8e8ff';
+  ctx.shadowBlur  = 10;
+  ctx.stroke(); // reuse same path
+
+  ctx.restore();
+}
+
+// ── Crystals ───────────────────────────────────────────────────────────────
+function drawCrystals(t){
+  for(const c of crystals){
+    if(c.collected) continue;
+    const sx=c.wx-camX, sy=c.wy-camY;
+    if(sx<-60||sx>W+60||sy<-60||sy>H+60) continue;
+
+    const bob=Math.sin(t*0.0018+c.phase)*3;
+    const col=CCOLORS[c.type];
 
     ctx.save();
-    ctx.translate(sx, c.y + bob);
-    ctx.rotate(t * 0.001 + c.phase);
+    ctx.translate(sx, sy+bob);
+    ctx.rotate(t*0.001+c.phase);
 
-    // glow
-    const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, c.r * 3);
-    grd.addColorStop(0, shad + '0.5)');
-    grd.addColorStop(1, shad + '0)');
-    ctx.beginPath();
-    ctx.arc(0, 0, c.r * 3, 0, Math.PI * 2);
-    ctx.fillStyle = grd;
-    ctx.fill();
+    // outer glow halo
+    const g=ctx.createRadialGradient(0,0,0,0,0,c.r*4);
+    g.addColorStop(0, CSHADOW[c.type]+'0.5)');
+    g.addColorStop(1, CSHADOW[c.type]+'0)');
+    ctx.beginPath(); ctx.arc(0,0,c.r*4,0,Math.PI*2);
+    ctx.fillStyle=g; ctx.fill();
 
     // pentagon shape
     ctx.beginPath();
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
-      const x = Math.cos(a) * c.r;
-      const y = Math.sin(a) * c.r;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    for(let i=0;i<5;i++){
+      const a=(i/5)*Math.PI*2-Math.PI/2;
+      i===0 ? ctx.moveTo(Math.cos(a)*c.r,Math.sin(a)*c.r)
+             : ctx.lineTo(Math.cos(a)*c.r,Math.sin(a)*c.r);
     }
     ctx.closePath();
-    ctx.fillStyle = col;
-    ctx.shadowColor = col;
-    ctx.shadowBlur = 18;
-    ctx.fill();
-    ctx.shadowBlur = 0;
+    ctx.fillStyle=col;
+    ctx.shadowColor=col; ctx.shadowBlur=24;
+    ctx.fill(); ctx.shadowBlur=0;
     ctx.restore();
   }
 }
 
-function drawPlayer() {
-  const px = player.x;
-  const py = player.y;
+// ── Player ─────────────────────────────────────────────────────────────────
+function drawPlayer(t){
+  const sx=player.wx-camX, sy=player.wy-camY;
 
-  // outer glow
-  const grd = ctx.createRadialGradient(px, py, 0, px, py, PLAYER_R * 5);
-  grd.addColorStop(0, 'rgba(80,180,255,0.35)');
-  grd.addColorStop(1, 'rgba(80,180,255,0)');
-  ctx.beginPath();
-  ctx.arc(px, py, PLAYER_R * 5, 0, Math.PI * 2);
-  ctx.fillStyle = grd;
-  ctx.fill();
+  const g=ctx.createRadialGradient(sx,sy,0,sx,sy,player.r*6);
+  g.addColorStop(0,'rgba(80,180,255,0.3)');
+  g.addColorStop(1,'rgba(80,180,255,0)');
+  ctx.beginPath(); ctx.arc(sx,sy,player.r*6,0,Math.PI*2);
+  ctx.fillStyle=g; ctx.fill();
 
-  // core
-  ctx.beginPath();
-  ctx.arc(px, py, PLAYER_R, 0, Math.PI * 2);
-  ctx.fillStyle = '#64c8ff';
-  ctx.shadowColor = '#64c8ff';
-  ctx.shadowBlur = 24;
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  ctx.beginPath(); ctx.arc(sx,sy,player.r,0,Math.PI*2);
+  ctx.fillStyle='#64c8ff';
+  ctx.shadowColor='#64c8ff'; ctx.shadowBlur=28; ctx.fill(); ctx.shadowBlur=0;
 
-  // inner bright
-  ctx.beginPath();
-  ctx.arc(px - 2, py - 2, PLAYER_R * 0.4, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(sx-2,sy-2,player.r*0.38,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fill();
 }
 
-function spawnParticle(x, y, color) {
-  for (let i = 0; i < 10; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const sp = 1 + Math.random() * 3;
-    particles.push({
-      x, y,
-      vx: Math.cos(a) * sp,
-      vy: Math.sin(a) * sp,
-      color,
-      life: 1,
-      r: 2 + Math.random() * 3
-    });
+// ── Particles ──────────────────────────────────────────────────────────────
+function spawnParticles(wx,wy,col){
+  for(let i=0;i<14;i++){
+    const a=Math.random()*Math.PI*2, sp=1+Math.random()*4;
+    particles.push({x:wx,y:wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color:col,life:1,r:3+Math.random()*3});
   }
 }
 
-function updateParticles() {
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vx *= 0.92;
-    p.vy *= 0.92;
-    p.life -= 0.035;
-    if (p.life <= 0) { particles.splice(i, 1); continue; }
-
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
-    ctx.fillStyle = p.color;
-    ctx.globalAlpha = p.life * 0.8;
-    ctx.fill();
-    ctx.globalAlpha = 1;
+function updateParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx; p.y+=p.vy; p.vx*=0.9; p.vy*=0.9; p.life-=0.03;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    ctx.beginPath(); ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);
+    ctx.fillStyle=p.color; ctx.globalAlpha=p.life; ctx.fill(); ctx.globalAlpha=1;
   }
 }
 
-// ── Collision ──────────────────────────────────────────────────────────────
-function checkWallCollision() {
-  const worldX = player.x + scrollOffset;
-  const cy = corridorCY(worldX);
-  const topWallBot = cy - CORRIDOR_H / 2;
-  const botWallTop = cy + CORRIDOR_H / 2;
-
-  if (player.y - PLAYER_R < topWallBot || player.y + PLAYER_R > botWallTop) {
-    return true;
-  }
-  return false;
-}
-
-function checkCrystals() {
-  for (const c of crystals) {
-    if (c.collected) continue;
-    const sx = c.x - scrollOffset;
-    const dx = sx - player.x;
-    const dy = c.y - player.y;
-    if (Math.sqrt(dx * dx + dy * dy) < PLAYER_R + c.r + 4) {
-      c.collected = true;
-      counts[c.type]++;
-      spawnParticle(player.x, player.y, crystalColor(c.type));
-      updateUI();
+// ── Crystal pickup ─────────────────────────────────────────────────────────
+function checkCrystals(){
+  for(const c of crystals){
+    if(c.collected) continue;
+    const dx=c.wx-player.wx, dy=c.wy-player.wy;
+    if(dx*dx+dy*dy<(player.r+c.r+8)**2){
+      c.collected=true; counts[c.type]++;
+      spawnParticles(c.wx,c.wy,CCOLORS[c.type]);
+      document.getElementById('c'+c.type).textContent=counts[c.type];
     }
   }
 }
 
-function updateUI() {
-  document.getElementById('cnt-g').textContent = counts.g;
-  document.getElementById('cnt-y').textContent = counts.y;
-  document.getElementById('cnt-p').textContent = counts.p;
+// ── Minimap ─────────────────────────────────────────────────────────────────
+function drawMinimap(vis){
+  const MW=mmc.width, MH=mmc.height;
+  mmx.clearRect(0,0,MW,MH);
+  mmx.fillStyle='#000';
+  mmx.fillRect(0,0,MW,MH);
+
+  const scale=2.2;
+  const offX=MW/2-(player.wx/TILE)*scale;
+  const offY=MH/2-(player.wy/TILE)*scale;
+
+  // draw floor tiles as faint white
+  for(const {cx,cy,data} of vis){
+    const {tiles}=data;
+    for(let ty=0;ty<CHUNK;ty++) for(let tx=0;tx<CHUNK;tx++){
+      if(!tiles[ty*CHUNK+tx]) continue;
+      mmx.fillStyle='rgba(255,255,255,0.14)';
+      mmx.fillRect((cx*CHUNK+tx)*scale+offX,(cy*CHUNK+ty)*scale+offY,scale,scale);
+    }
+  }
+
+  // crystals
+  for(const c of crystals){
+    if(c.collected) continue;
+    const px=(c.wx/TILE)*scale+offX, py=(c.wy/TILE)*scale+offY;
+    if(px<0||px>MW||py<0||py>MH) continue;
+    mmx.beginPath(); mmx.arc(px,py,2,0,Math.PI*2);
+    mmx.fillStyle=CCOLORS[c.type]; mmx.fill();
+  }
+
+  // player
+  mmx.beginPath(); mmx.arc(MW/2,MH/2,3,0,Math.PI*2);
+  mmx.fillStyle='#64c8ff';
+  mmx.shadowColor='#64c8ff'; mmx.shadowBlur=6; mmx.fill(); mmx.shadowBlur=0;
 }
 
-// ── Game loop ──────────────────────────────────────────────────────────────
-let lastTime = 0;
-function loop(t) {
-  if (!gameRunning) return;
-  const dt = Math.min(t - lastTime, 50);
-  lastTime = t;
+// ── Init ───────────────────────────────────────────────────────────────────
+for(let cy=-1;cy<=1;cy++) for(let cx=-1;cx<=1;cx++) getChunk(cx,cy);
 
-  // clear
-  ctx.fillStyle = '#0a0a0a';
-  ctx.fillRect(0, 0, W, H);
-
-  // scroll
-  scrollOffset += gameSpeed;
-  gameSpeed += 0.0008; // gentle acceleration
-
-  // chunk management
-  const lastChunk = chunks[chunks.length - 1];
-  if (lastChunk && lastChunk.startX - scrollOffset < W + CHUNK_W) {
-    spawnChunk(lastChunk.startX + CHUNK_W);
+// place player on first floor tile near centre
+const sc=chunks.get('0,0');
+outer: for(let ty=CHUNK/2-4;ty<=CHUNK/2+4;ty++){
+  for(let tx=CHUNK/2-4;tx<=CHUNK/2+4;tx++){
+    if(sc.tiles[ty*CHUNK+tx]===1){
+      player.wx=tx*TILE+TILE/2;
+      player.wy=ty*TILE+TILE/2;
+      break outer;
+    }
   }
-  // cull far-left chunks
-  while (chunks.length && chunks[0].startX + CHUNK_W < scrollOffset - 100) {
-    chunks.shift();
-  }
-  while (crystals.length && crystals[0].x < scrollOffset - 100) {
-    crystals.shift();
-  }
+}
+camX=player.wx-W/2; camY=player.wy-H/2;
 
-  // draw background scanlines
-  ctx.fillStyle = 'rgba(255,255,255,0.012)';
-  for (let y = 0; y < H; y += 4) {
-    ctx.fillRect(0, y, W, 1);
-  }
+// ── Loop ───────────────────────────────────────────────────────────────────
+function loop(t){
+  const sp=player.speed;
+  let dx=0,dy=0;
+  if(keys['w']||keys['arrowup'])    dy-=sp;
+  if(keys['s']||keys['arrowdown'])  dy+=sp;
+  if(keys['a']||keys['arrowleft'])  dx-=sp;
+  if(keys['d']||keys['arrowright']) dx+=sp;
+  if(dx&&dy){dx*=0.707;dy*=0.707;}
+  if(dx||dy) tryMove(dx,dy);
 
-  // walls
-  drawWalls();
-  wallGlow();
+  updateCamera();
 
-  // player input
-  const spd = 3.2;
-  if (keys['w'] || keys['arrowup'])    player.y -= spd;
-  if (keys['s'] || keys['arrowdown'])  player.y += spd;
-  if (keys['a'] || keys['arrowleft'])  player.x -= spd * 0.6;
-  if (keys['d'] || keys['arrowright']) player.x += spd * 0.6;
+  // pure black background
+  ctx.fillStyle='#000000';
+  ctx.fillRect(0,0,W,H);
 
-  // clamp to screen
-  player.x = Math.max(PLAYER_R + 2, Math.min(W - PLAYER_R - 2, player.x));
-  player.y = Math.max(PLAYER_R + 2, Math.min(H - PLAYER_R - 2, player.y));
-
-  // draw
+  const vis=getVisible();
+  drawWalls(vis);
   drawCrystals(t);
   updateParticles();
-  drawPlayer();
-
-  // check crystals
+  drawPlayer(t);
   checkCrystals();
-
-  // wall collision
-  if (checkWallCollision()) {
-    endGame();
-    return;
-  }
+  drawMinimap(vis);
 
   requestAnimationFrame(loop);
 }
 
-function startGame() {
-  initGame();
-  gameRunning = true;
-  document.getElementById('overlay').style.display = 'none';
-  lastTime = performance.now();
-  requestAnimationFrame(loop);
-}
-
-function endGame() {
-  gameRunning = false;
-  const overlay = document.getElementById('overlay');
-  overlay.style.display = 'flex';
-  document.getElementById('gameover-text').style.display = 'block';
-  const scoreEl = document.getElementById('last-score');
-  scoreEl.style.display = 'block';
-  const total = counts.g + counts.y + counts.p;
-  scoreEl.textContent = `CRYSTALS: ${counts.g} · ${counts.y} · ${counts.p}  ·  TOTAL ${total}`;
-  document.getElementById('start-btn').textContent = 'RESTART';
-  document.querySelector('.subtitle').textContent = '';
-}
-
-document.getElementById('start-btn').addEventListener('click', startGame);
-
-// initial draw
-ctx.fillStyle = '#0a0a0a';
-ctx.fillRect(0, 0, W, H);
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
