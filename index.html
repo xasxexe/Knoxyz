@@ -301,16 +301,33 @@ async function loadLeaderboard(mode){
   try{
     const col=mode==='green'?'crystals_green':mode==='yellow'?'crystals_yellow':mode==='purple'?'crystals_purple':'total';
     const rows=await sbFetch(`scores?select=username,crystals_green,crystals_yellow,crystals_purple,total&order=${col}.desc&limit=20`);
-    if(!rows.length){body.innerHTML='<tr><td colspan="6" style="color:rgba(255,255,255,0.2);padding:12px 8px">NO SCORES YET</td></tr>';return;}
-    body.innerHTML=rows.map((r,i)=>`
-      <tr class="${currentUser&&r.username===currentUser.username?'me':''}">
-        <td class="lb-rank">${i+1}</td>
-        <td class="lb-name">${r.username}</td>
-        <td class="lb-g">${r.crystals_green}</td>
-        <td class="lb-y">${r.crystals_yellow}</td>
-        <td class="lb-p">${r.crystals_purple}</td>
-        <td class="lb-total">${r.total}</td>
-      </tr>`).join('');
+    if(!rows.length){body.innerHTML='<tr><td colspan="3" style="color:rgba(255,255,255,0.2);padding:12px 8px">NO SCORES YET</td></tr>';return;}
+
+    // Build header and rows based on mode
+    const thead = document.querySelector('#lb-table thead tr');
+    if(mode==='total'){
+      thead.innerHTML='<th>#</th><th>PLAYER</th><th class="lb-g">G</th><th class="lb-y">Y</th><th class="lb-p">P</th><th>TOTAL</th>';
+      body.innerHTML=rows.map((r,i)=>`
+        <tr class="${currentUser&&r.username===currentUser.username?'me':''}">
+          <td class="lb-rank">${i+1}</td>
+          <td class="lb-name">${r.username}</td>
+          <td class="lb-g">${r.crystals_green}</td>
+          <td class="lb-y">${r.crystals_yellow}</td>
+          <td class="lb-p">${r.crystals_purple}</td>
+          <td class="lb-total">${r.total}</td>
+        </tr>`).join('');
+    } else {
+      const colorClass=mode==='green'?'lb-g':mode==='yellow'?'lb-y':'lb-p';
+      const label=mode==='green'?'GREEN':mode==='yellow'?'YELLOW':'PURPLE';
+      const val=r=>mode==='green'?r.crystals_green:mode==='yellow'?r.crystals_yellow:r.crystals_purple;
+      thead.innerHTML=`<th>#</th><th>PLAYER</th><th class="${colorClass}">${label}</th>`;
+      body.innerHTML=rows.map((r,i)=>`
+        <tr class="${currentUser&&r.username===currentUser.username?'me':''}">
+          <td class="lb-rank">${i+1}</td>
+          <td class="lb-name">${r.username}</td>
+          <td class="${colorClass}">${val(r)}</td>
+        </tr>`).join('');
+    }
   }catch(e){err.textContent='COULD NOT LOAD: '+e.message;}
 }
 
@@ -497,6 +514,10 @@ async function autoSave(){
     }
     // flash indicator
     const msg=document.getElementById('save-msg');
+    // sync HUD to show accumulated total
+    document.getElementById('cg').textContent=storedCounts.g+counts.g;
+    document.getElementById('cy').textContent=storedCounts.y+counts.y;
+    document.getElementById('cp').textContent=storedCounts.p+counts.p;
     msg.style.opacity=1; setTimeout(()=>msg.style.opacity=0,1200);
   }catch(e){console.error('autosave error',e);}
 }
@@ -536,6 +557,10 @@ function startGame(){
         if(rows.length){
           scoreRowId=rows[0].id;
           storedCounts={g:rows[0].crystals_green||0,y:rows[0].crystals_yellow||0,p:rows[0].crystals_purple||0};
+          // show existing totals in HUD immediately
+          document.getElementById('cg').textContent=storedCounts.g;
+          document.getElementById('cy').textContent=storedCounts.y;
+          document.getElementById('cp').textContent=storedCounts.p;
         }
       }).catch(()=>{});
   }
