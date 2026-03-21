@@ -362,6 +362,7 @@ const chunkMap=new Map(),crystals=[],particles=[];
 const counts={g:0,y:0,p:0};
 const player={wx:0,wy:0,r:14,speed:3.6};
 let camX=0,camY=0,gameRunning=false;
+let storedCounts={g:0,y:0,p:0}; // counts already in DB for this user
 const keys={};
 window.addEventListener('keydown',e=>{if(gameRunning){keys[e.key.toLowerCase()]=true;e.preventDefault();}});
 window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
@@ -461,31 +462,46 @@ function drawCrystals(){for(const c of crystals){if(c.collected)continue;const s
 function drawPlayer(){const sx=player.wx-camX,sy=player.wy-camY;ctx.beginPath();ctx.arc(sx,sy,player.r,0,Math.PI*2);ctx.fillStyle='#ff3333';ctx.shadowColor='#ff3333';ctx.shadowBlur=6;ctx.fill();ctx.shadowBlur=0;}
 function spawnParticles(wx,wy,col){for(let i=0;i<10;i++){const a=Math.random()*Math.PI*2,sp=.8+Math.random()*3;particles.push({x:wx,y:wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color:col,life:1,r:2+Math.random()*2});}}
 function updateParticles(){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=.9;p.vy*=.9;p.life-=.04;if(p.life<=0){particles.splice(i,1);continue;}ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.globalAlpha=p.life*.8;ctx.fill();ctx.globalAlpha=1;}}
-function checkCrystals(){for(const c of crystals){if(c.collected)continue;const dx=c.wx-player.wx,dy=c.wy-player.wy;if(dx*dx+dy*dy<(player.r+c.r+10)**2){c.collected=true;counts[c.type]++;spawnParticles(c.wx,c.wy,CCOLORS[c.type]);document.getElementById('c'+c.type).textContent=counts[c.type];}}}
+function checkCrystals(){for(const c of crystals){if(c.collected)continue;const dx=c.wx-player.wx,dy=c.wy-player.wy;if(dx*dx+dy*dy<(player.r+c.r+10)**2){c.collected=true;counts[c.type]++;spawnParticles(c.wx,c.wy,CCOLORS[c.type]);document.getElementById('c'+c.type).textContent=counts[c.type];scheduleAutoSave();}}}
 
-// ── Save score ─────────────────────────────────────────────────────────────
-document.getElementById('save-btn').addEventListener('click', async()=>{
+// ── Auto-save with debounce ────────────────────────────────────────────────
+let autoSaveTimer=null;
+let scoreRowId=null; // cached DB row id for this user
+
+function scheduleAutoSave(){
   if(!currentUser) return;
-  const btn=document.getElementById('save-btn');
-  const msg=document.getElementById('save-msg');
-  btn.disabled=true;
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer=setTimeout(()=>autoSave(),2000);
+}
+
+async function autoSave(){
+  if(!currentUser) return;
   try{
-    // upsert: update if exists, insert otherwise
-    const existing=await sbFetch(`scores?user_id=eq.${currentUser.id}&select=id`);
-    if(existing.length){
-      await sbFetch(`scores?id=eq.${existing[0].id}`,{
-        method:'PATCH',prefer:'return=minimal',
-        body:{crystals_green:counts.g,crystals_yellow:counts.y,crystals_purple:counts.p,saved_at:new Date().toISOString()}
+    if(scoreRowId){
+      // update existing row — add current session to stored totals
+      await sbFetch('scores?id=eq.'+scoreRowId,{
+        method:'PATCH', prefer:'return=minimal',
+        body:{
+          crystals_green: storedCounts.g + counts.g,
+          crystals_yellow: storedCounts.y + counts.y,
+          crystals_purple: storedCounts.p + counts.p,
+          saved_at: new Date().toISOString()
+        }
       });
     } else {
-      await sbFetch('scores',{method:'POST',prefer:'return=minimal',
-        body:{user_id:currentUser.id,username:currentUser.username,crystals_green:counts.g,crystals_yellow:counts.y,crystals_purple:counts.p}
+      const rows=await sbFetch('scores',{method:'POST',prefer:'return=representation',
+        body:{user_id:currentUser.id,username:currentUser.username,
+          crystals_green:counts.g,crystals_yellow:counts.y,crystals_purple:counts.p}
       });
+      if(rows.length) scoreRowId=rows[0].id;
     }
-    msg.style.opacity=1; setTimeout(()=>msg.style.opacity=0,2000);
-  }catch(e){console.error(e);}
-  finally{btn.disabled=false;}
-});
+    // flash indicator
+    const msg=document.getElementById('save-msg');
+    msg.style.opacity=1; setTimeout(()=>msg.style.opacity=0,1200);
+  }catch(e){console.error('autosave error',e);}
+}
+
+// save-btn hidden — scores auto-save on crystal pickup
 
 // ── Start game ─────────────────────────────────────────────────────────────
 function startGame(){
@@ -508,8 +524,21 @@ function startGame(){
   document.getElementById('menu').style.display='none';
   document.getElementById('ui').style.display='block';
   document.getElementById('hud-user').textContent=currentUser?currentUser.username:'GUEST';
-  if(!currentUser) document.getElementById('save-btn').style.display='none';
-  else document.getElementById('save-btn').style.display='block';
+  document.getElementById('save-btn').style.display='none'; // hidden, auto-save active
+
+  scoreRowId=null;
+  storedCounts={g:0,y:0,p:0};
+
+  if(currentUser){
+    // load existing score row so we can accumulate on top of it
+    sbFetch('scores?user_id=eq.'+currentUser.id+'&select=id,crystals_green,crystals_yellow,crystals_purple')
+      .then(rows=>{
+        if(rows.length){
+          scoreRowId=rows[0].id;
+          storedCounts={g:rows[0].crystals_green||0,y:rows[0].crystals_yellow||0,p:rows[0].crystals_purple||0};
+        }
+      }).catch(()=>{});
+  }
 
   gameRunning=true;
   requestAnimationFrame(gameLoop);
