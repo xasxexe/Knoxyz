@@ -68,7 +68,7 @@ const chunkMap  = new Map();
 const crystals  = [];
 const particles = [];
 const counts    = { g:0, y:0, p:0 };
-const player    = { wx:0, wy:0, r:9, speed:3.6 };
+const player    = { wx:0, wy:0, r:14, speed:3.6 };
 let camX=0, camY=0;
 
 const keys = {};
@@ -413,13 +413,11 @@ function checkCrystals(){
 // ── Init ───────────────────────────────────────────────────────────────────
 for(let cy=-1;cy<=1;cy++) for(let cx=-1;cx<=1;cx++) getChunk(cx,cy);
 const sc=chunkMap.get('0,0');
-outer: for(let ty=CHUNK/2-5;ty<=CHUNK/2+5;ty++){
-  for(let tx=CHUNK/2-5;tx<=CHUNK/2+5;tx++){
-    if(sc.tiles[ty*CHUNK+tx]===1){
-      player.wx=tx*TILE+TILE/2; player.wy=ty*TILE+TILE/2; break outer;
-    }
-  }
-}
+const spawnFloor=[];
+for(let i=0;i<CHUNK*CHUNK;i++) if(sc.tiles[i]===1) spawnFloor.push(i);
+const spawnIdx=spawnFloor[Math.floor(Math.random()*spawnFloor.length)];
+player.wx=(spawnIdx%CHUNK)*TILE+TILE/2;
+player.wy=Math.floor(spawnIdx/CHUNK)*TILE+TILE/2;
 camX=player.wx-W/2; camY=player.wy-H/2;
 
 // ── Loop ───────────────────────────────────────────────────────────────────
