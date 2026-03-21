@@ -11,441 +11,537 @@
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="KNOXYZ">
-<meta name="twitter:description" content="Knoxyz game — explore infinite dark corridors and collect rare crystals.">
 <meta name="twitter:image" content="knoxyz.jpg">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap');
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#000; overflow:hidden; }
-  canvas { display:block; position:fixed; top:0; left:0; }
-  #ui { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10; }
-  #title {
-    position:absolute; top:20px; left:24px;
-    font-family:'Orbitron',monospace; font-weight:900; font-size:20px;
-    letter-spacing:8px; color:#fff;
-    text-shadow:0 0 20px rgba(100,200,255,0.4);
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#000;overflow:hidden;font-family:'Share Tech Mono',monospace;color:#fff;}
+  canvas{display:block;position:fixed;top:0;left:0;}
+
+  /* ── UI overlay ── */
+  #ui{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;}
+  #hud-title{
+    position:absolute;top:20px;left:24px;
+    font-family:'Orbitron',monospace;font-weight:900;font-size:20px;
+    letter-spacing:8px;text-shadow:0 0 20px rgba(100,200,255,0.4);
   }
-  #crystals {
-    position:absolute; top:14px; right:20px;
-    display:flex; flex-direction:column; gap:8px; align-items:flex-end;
+  #hud-user{
+    position:absolute;top:20px;left:50%;transform:translateX(-50%);
+    font-size:11px;letter-spacing:3px;color:rgba(255,255,255,0.35);
   }
-  .crow { display:flex; align-items:center; gap:9px; }
-  .ccount { font-family:'Orbitron',monospace; font-size:15px; font-weight:700; min-width:30px; text-align:right; }
-  .cicon  { width:13px; height:13px; clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%); }
-  .g  { background:#00ff88; box-shadow:0 0 8px #00ff88; }
-  .gt { color:#00ff88; text-shadow:0 0 6px #00ff88; }
-  .y  { background:#ffd700; box-shadow:0 0 8px #ffd700; }
-  .yt { color:#ffd700; text-shadow:0 0 6px #ffd700; }
-  .p  { background:#bf5fff; box-shadow:0 0 8px #bf5fff; }
-  .pt { color:#bf5fff; text-shadow:0 0 6px #bf5fff; }
+  #crystals{
+    position:absolute;top:14px;right:20px;
+    display:flex;flex-direction:column;gap:8px;align-items:flex-end;
+  }
+  .crow{display:flex;align-items:center;gap:9px;}
+  .ccount{font-family:'Orbitron',monospace;font-size:15px;font-weight:700;min-width:30px;text-align:right;}
+  .cicon{width:13px;height:13px;clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);}
+  .g{background:#00ff88;box-shadow:0 0 8px #00ff88;} .gt{color:#00ff88;text-shadow:0 0 6px #00ff88;}
+  .y{background:#ffd700;box-shadow:0 0 8px #ffd700;} .yt{color:#ffd700;text-shadow:0 0 6px #ffd700;}
+  .p{background:#bf5fff;box-shadow:0 0 8px #bf5fff;} .pt{color:#bf5fff;text-shadow:0 0 6px #bf5fff;}
+  #save-btn{
+    position:absolute;bottom:24px;right:24px;pointer-events:all;
+    background:transparent;border:1px solid rgba(255,255,255,0.15);
+    color:rgba(255,255,255,0.4);font-family:'Orbitron',monospace;
+    font-size:10px;letter-spacing:3px;padding:8px 18px;cursor:pointer;
+    transition:all .2s;
+  }
+  #save-btn:hover{border-color:rgba(255,255,255,0.5);color:#fff;}
+  #save-msg{
+    position:absolute;bottom:62px;right:24px;
+    font-size:10px;letter-spacing:2px;color:rgba(0,255,136,0.7);
+    opacity:0;transition:opacity .4s;
+  }
+
+  /* ── Menu overlay ── */
+  #menu{
+    position:fixed;top:0;left:0;width:100%;height:100%;z-index:20;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    pointer-events:all;
+  }
+  #menu-logo{
+    font-family:'Orbitron',monospace;font-weight:900;
+    font-size:clamp(44px,8vw,88px);letter-spacing:14px;
+    text-shadow:0 0 30px rgba(255,255,255,0.3),0 0 80px rgba(100,200,255,0.15);
+    margin-bottom:6px;animation:logopulse 4s ease-in-out infinite;
+  }
+  @keyframes logopulse{
+    0%,100%{text-shadow:0 0 30px rgba(255,255,255,0.3),0 0 80px rgba(100,200,255,0.15);}
+    50%{text-shadow:0 0 50px rgba(255,255,255,0.5),0 0 120px rgba(100,200,255,0.3);}
+  }
+  #menu-sub{font-size:10px;letter-spacing:6px;color:rgba(255,255,255,0.2);margin-bottom:48px;}
+
+  /* tabs */
+  #menu-tabs{display:flex;gap:0;margin-bottom:32px;}
+  .tab-btn{
+    background:transparent;border:1px solid rgba(255,255,255,0.1);
+    color:rgba(255,255,255,0.35);font-family:'Orbitron',monospace;
+    font-size:10px;letter-spacing:3px;padding:10px 22px;cursor:pointer;
+    transition:all .2s;margin:0 -1px;
+  }
+  .tab-btn.active{border-color:rgba(255,255,255,0.5);color:#fff;background:rgba(255,255,255,0.04);}
+  .tab-btn:hover:not(.active){color:rgba(255,255,255,0.6);}
+
+  /* panels */
+  .panel{display:none;flex-direction:column;align-items:center;gap:14px;width:320px;}
+  .panel.active{display:flex;}
+
+  .field{
+    width:100%;background:transparent;
+    border:none;border-bottom:1px solid rgba(255,255,255,0.15);
+    color:#fff;font-family:'Share Tech Mono',monospace;font-size:14px;
+    letter-spacing:2px;padding:10px 4px;outline:none;
+    transition:border-color .2s;
+  }
+  .field::placeholder{color:rgba(255,255,255,0.2);}
+  .field:focus{border-color:rgba(255,255,255,0.5);}
+
+  .action-btn{
+    width:100%;background:transparent;
+    border:1px solid rgba(255,255,255,0.2);
+    color:#fff;font-family:'Orbitron',monospace;
+    font-size:11px;letter-spacing:4px;padding:13px;
+    cursor:pointer;transition:all .25s;margin-top:4px;
+  }
+  .action-btn:hover{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.5);}
+  .action-btn:disabled{opacity:.3;cursor:default;}
+
+  .err{font-size:11px;letter-spacing:1px;color:rgba(255,80,80,0.85);min-height:16px;text-align:center;}
+  .ok {font-size:11px;letter-spacing:1px;color:rgba(0,255,136,0.8);min-height:16px;text-align:center;}
+
+  /* leaderboard */
+  #lb-table{width:100%;border-collapse:collapse;font-size:12px;letter-spacing:1px;}
+  #lb-table th{color:rgba(255,255,255,0.3);font-weight:400;padding:4px 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.08);}
+  #lb-table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.04);}
+  #lb-table tr.me td{color:#ffd700;}
+  .lb-rank{color:rgba(255,255,255,0.3);width:28px;}
+  .lb-name{color:#fff;}
+  .lb-g{color:#00ff88;} .lb-y{color:#ffd700;} .lb-p{color:#bf5fff;}
+  .lb-total{color:#fff;font-family:'Orbitron',monospace;}
+
+  /* stats */
+  #stats-box{width:100%;display:flex;flex-direction:column;gap:10px;}
+  .stat-row{display:flex;justify-content:space-between;align-items:center;
+    border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:8px;}
+  .stat-label{color:rgba(255,255,255,0.3);font-size:11px;letter-spacing:2px;}
+  .stat-val{font-family:'Orbitron',monospace;font-size:14px;}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="ui">
-  <div id="title">KNOXYZ</div>
+<canvas id="stars"></canvas>
+
+<!-- HUD (visible during game) -->
+<div id="ui" style="display:none">
+  <div id="hud-title">KNOXYZ</div>
+  <div id="hud-user"></div>
   <div id="crystals">
     <div class="crow"><span class="ccount gt" id="cg">0</span><div class="cicon g"></div></div>
     <div class="crow"><span class="ccount yt" id="cy">0</span><div class="cicon y"></div></div>
     <div class="crow"><span class="ccount pt" id="cp">0</span><div class="cicon p"></div></div>
   </div>
+  <button id="save-btn">SAVE SCORE</button>
+  <div id="save-msg">SAVED</div>
 </div>
+
+<!-- MENU -->
+<div id="menu">
+  <div id="menu-logo">KNOXYZ</div>
+  <div id="menu-sub">INFINITE CORRIDOR EXPLORER</div>
+
+  <div id="menu-tabs">
+    <button class="tab-btn active" onclick="switchTab('login')">LOGIN</button>
+    <button class="tab-btn" onclick="switchTab('register')">REGISTER</button>
+    <button class="tab-btn" onclick="switchTab('leaderboard');loadLeaderboard()">SCORES</button>
+  </div>
+
+  <!-- Login -->
+  <div class="panel active" id="tab-login">
+    <input class="field" id="l-user" placeholder="USERNAME" autocomplete="off" spellcheck="false">
+    <input class="field" id="l-pass" type="password" placeholder="PASSWORD">
+    <div class="err" id="l-err"></div>
+    <button class="action-btn" id="l-btn" onclick="doLogin()">ENTER</button>
+    <button class="action-btn" style="border-color:transparent;color:rgba(255,255,255,0.2);font-size:10px;margin-top:-8px" onclick="playGuest()">PLAY AS GUEST</button>
+  </div>
+
+  <!-- Register -->
+  <div class="panel" id="tab-register">
+    <input class="field" id="r-user" placeholder="USERNAME" autocomplete="off" spellcheck="false">
+    <input class="field" id="r-pass" type="password" placeholder="PASSWORD">
+    <input class="field" id="r-pass2" type="password" placeholder="CONFIRM PASSWORD">
+    <div class="err" id="r-err"></div>
+    <button class="action-btn" id="r-btn" onclick="doRegister()">CREATE ACCOUNT</button>
+  </div>
+
+  <!-- Leaderboard -->
+  <div class="panel" id="tab-leaderboard" style="width:420px;max-height:380px;overflow-y:auto;">
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;justify-content:center;">
+      <button class="tab-btn active" id="lb-all-btn"   onclick="loadLeaderboard('total')">TOTAL</button>
+      <button class="tab-btn"        id="lb-g-btn"     onclick="loadLeaderboard('green')">GREEN</button>
+      <button class="tab-btn"        id="lb-y-btn"     onclick="loadLeaderboard('yellow')">YELLOW</button>
+      <button class="tab-btn"        id="lb-p-btn"     onclick="loadLeaderboard('purple')">PURPLE</button>
+    </div>
+    <div id="lb-err" class="err"></div>
+    <table id="lb-table">
+      <thead><tr>
+        <th>#</th><th>PLAYER</th>
+        <th class="lb-g">G</th><th class="lb-y">Y</th><th class="lb-p">P</th>
+        <th>TOTAL</th>
+      </tr></thead>
+      <tbody id="lb-body"></tbody>
+    </table>
+  </div>
+</div>
+
 <script>
-const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
-let W, H;
-function resize(){ W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
-resize();
-window.addEventListener('resize', resize);
+// ── Supabase config ────────────────────────────────────────────────────────
+const SB_URL = 'https://isbanpioueifclkgwgxz.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzYmFucGlvdWVpZmNsa2d3Z3h6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMzE4OTYsImV4cCI6MjA4OTcwNzg5Nn0.-D4XH7cwqqOHXlKMnJsiOP06wc2nbM1VekTExuKmJJY';
 
-const TILE  = 40;
-const CHUNK = 24;
-const CS    = TILE * CHUNK;
-const CRYSTAL_RARITY = 200;
-const CCOLORS = { g:'#00ff88', y:'#ffd700', p:'#bf5fff' };
-
-const chunkMap  = new Map();
-const crystals  = [];
-const particles = [];
-const counts    = { g:0, y:0, p:0 };
-const player    = { wx:0, wy:0, r:14, speed:3.6 };
-let camX=0, camY=0;
-
-const keys = {};
-window.addEventListener('keydown', e => { keys[e.key.toLowerCase()]=true;  e.preventDefault(); });
-window.addEventListener('keyup',   e => { keys[e.key.toLowerCase()]=false; });
-
-// ── Seeded RNG ─────────────────────────────────────────────────────────────
-function makeRng(seed){
-  let s = seed >>> 0;
-  return () => { s^=s<<13; s^=s>>>17; s^=s<<5; return (s>>>0)/0xFFFFFFFF; };
+async function sbFetch(path, opts={}){
+  const res = await fetch(SB_URL+'/rest/v1/'+path, {
+    headers:{
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer '+SB_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer||'return=representation',
+      ...opts.headers
+    },
+    method: opts.method||'GET',
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if(!res.ok){ const t=await res.text(); throw new Error(t); }
+  const txt = await res.text();
+  return txt ? JSON.parse(txt) : [];
 }
-const WORLD_SEED = Math.floor(Math.random()*0xFFFFFF);
-function chunkSeed(cx,cy){ return Math.imul(cx^WORLD_SEED,374761393)^Math.imul(cy^(WORLD_SEED*7),1234567891); }
 
-// ── World generation ───────────────────────────────────────────────────────
-function generateChunk(cx, cy){
-  const r = makeRng(chunkSeed(cx,cy));
-  const T = CHUNK;
-  const tiles = new Uint8Array(T*T);
-  const carve = (rx,ry,rw,rh) => {
-    const x0=Math.max(1,rx), y0=Math.max(1,ry);
-    const x1=Math.min(T-2,rx+rw-1), y1=Math.min(T-2,ry+rh-1);
-    for(let ty=y0;ty<=y1;ty++) for(let tx=x0;tx<=x1;tx++) tiles[ty*T+tx]=1;
-  };
+// simple hash (SHA-256 via SubtleCrypto)
+async function hashPass(pass){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 
-  const archetype = Math.floor(r() * 6);
-  const rooms = [];
+// ── Auth state ─────────────────────────────────────────────────────────────
+let currentUser = null; // {id, username}
 
-  if(archetype===0){
-    // hub — large center + 4 corridors
-    const hw=6+Math.floor(r()*4), hh=6+Math.floor(r()*4);
-    const hx=Math.floor(T/2-hw/2), hy=Math.floor(T/2-hh/2);
-    carve(hx,hy,hw,hh);
-    rooms.push({cx:Math.floor(T/2),cy:Math.floor(T/2)});
-    const cw=3+Math.floor(r()*2);
-    carve(Math.floor(T/2-cw/2),1,cw,hy);
-    carve(Math.floor(T/2-cw/2),hy+hh,cw,T-hy-hh-1);
-    carve(1,Math.floor(T/2-cw/2),hx,cw);
-    carve(hx+hw,Math.floor(T/2-cw/2),T-hx-hw-1,cw);
-  } else if(archetype===1){
-    // horizontal spine + side rooms
-    const spineY=4+Math.floor(r()*(T-8)), spineH=3+Math.floor(r()*3);
-    carve(1,spineY,T-2,spineH);
-    rooms.push({cx:Math.floor(T/2),cy:spineY+Math.floor(spineH/2)});
-    const nb=2+Math.floor(r()*3);
-    for(let i=0;i<nb;i++){
-      const rw=3+Math.floor(r()*5), rh=3+Math.floor(r()*5);
-      const rx=1+Math.floor(r()*(T-rw-2));
-      const ry=r()<0.5 ? spineY-rh : spineY+spineH;
-      carve(rx,ry,rw,rh);
-      rooms.push({cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});
-    }
-  } else if(archetype===2){
-    // vertical spine + side rooms
-    const spineX=4+Math.floor(r()*(T-8)), spineW=3+Math.floor(r()*3);
-    carve(spineX,1,spineW,T-2);
-    rooms.push({cx:spineX+Math.floor(spineW/2),cy:Math.floor(T/2)});
-    const nb=2+Math.floor(r()*3);
-    for(let i=0;i<nb;i++){
-      const rw=3+Math.floor(r()*5), rh=3+Math.floor(r()*5);
-      const ry=1+Math.floor(r()*(T-rh-2));
-      const rx=r()<0.5 ? spineX-rw : spineX+spineW;
-      carve(rx,ry,rw,rh);
-      rooms.push({cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});
-    }
-  } else if(archetype===3){
-    // 3x3 maze grid
-    const cols=3, rows=3;
-    const cellW=Math.floor((T-2)/cols), cellH=Math.floor((T-2)/rows);
-    for(let row=0;row<rows;row++) for(let col=0;col<cols;col++){
-      const rw=3+Math.floor(r()*Math.floor(cellW*0.6));
-      const rh=3+Math.floor(r()*Math.floor(cellH*0.6));
-      const rx=1+col*cellW+Math.floor(r()*(cellW-rw));
-      const ry=1+row*cellH+Math.floor(r()*(cellH-rh));
-      carve(rx,ry,rw,rh);
-      rooms.push({cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});
-    }
-  } else if(archetype===4){
-    // open cavern — overlapping blobs
-    const nb=3+Math.floor(r()*4);
-    for(let i=0;i<nb;i++){
-      const rw=5+Math.floor(r()*8), rh=5+Math.floor(r()*8);
-      const rx=1+Math.floor(r()*(T-rw-2)), ry=1+Math.floor(r()*(T-rh-2));
-      carve(rx,ry,rw,rh);
-      rooms.push({cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});
-    }
-  } else {
-    // scattered small rooms
-    const nb=6+Math.floor(r()*5);
-    for(let i=0;i<nb;i++){
-      const rw=2+Math.floor(r()*4), rh=2+Math.floor(r()*4);
-      const rx=1+Math.floor(r()*(T-rw-2)), ry=1+Math.floor(r()*(T-rh-2));
-      carve(rx,ry,rw,rh);
-      rooms.push({cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});
-    }
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(name){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── Login ──────────────────────────────────────────────────────────────────
+async function doLogin(){
+  const btn=document.getElementById('l-btn');
+  const err=document.getElementById('l-err');
+  const username=document.getElementById('l-user').value.trim();
+  const password=document.getElementById('l-pass').value;
+  err.textContent='';
+  if(!username||!password){err.textContent='FILL ALL FIELDS';return;}
+  btn.disabled=true; btn.textContent='...';
+  try{
+    const hash=await hashPass(password);
+    const rows=await sbFetch(`users?username=eq.${encodeURIComponent(username)}&password_hash=eq.${hash}&select=id,username`);
+    if(!rows.length){err.textContent='WRONG USERNAME OR PASSWORD';return;}
+    currentUser=rows[0];
+    startGame();
+  }catch(e){err.textContent='ERROR: '+e.message;}
+  finally{btn.disabled=false;btn.textContent='ENTER';}
+}
+
+// ── Register ───────────────────────────────────────────────────────────────
+async function doRegister(){
+  const btn=document.getElementById('r-btn');
+  const err=document.getElementById('r-err');
+  const username=document.getElementById('r-user').value.trim();
+  const password=document.getElementById('r-pass').value;
+  const password2=document.getElementById('r-pass2').value;
+  err.textContent='';
+  if(!username||!password){err.textContent='FILL ALL FIELDS';return;}
+  if(password!==password2){err.textContent='PASSWORDS DO NOT MATCH';return;}
+  if(username.length<3){err.textContent='USERNAME MIN 3 CHARS';return;}
+  if(password.length<4){err.textContent='PASSWORD MIN 4 CHARS';return;}
+  btn.disabled=true; btn.textContent='...';
+  try{
+    const hash=await hashPass(password);
+    const rows=await sbFetch('users',{
+      method:'POST',
+      prefer:'return=representation',
+      body:{username,password_hash:hash}
+    });
+    currentUser=rows[0];
+    startGame();
+  }catch(e){
+    if(e.message.includes('unique')||e.message.includes('duplicate'))
+      err.textContent='USERNAME ALREADY TAKEN';
+    else err.textContent='ERROR: '+e.message;
   }
+  finally{btn.disabled=false;btn.textContent='CREATE ACCOUNT';}
+}
 
-  // connect rooms
+function playGuest(){
+  currentUser=null;
+  startGame();
+}
+
+// ── Leaderboard ────────────────────────────────────────────────────────────
+let lbMode='total';
+async function loadLeaderboard(mode){
+  mode=mode||lbMode; lbMode=mode;
+  // update sub-tab buttons
+  ['all','g','y','p'].forEach(k=>{
+    const m={all:'total',g:'green',y:'yellow',p:'purple'}[k];
+    document.getElementById('lb-'+k+'-btn')?.classList.toggle('active',m===mode);
+  });
+  const err=document.getElementById('lb-err');
+  const body=document.getElementById('lb-body');
+  err.textContent=''; body.innerHTML='<tr><td colspan="6" style="color:rgba(255,255,255,0.2);padding:12px 8px">LOADING...</td></tr>';
+  try{
+    const col=mode==='green'?'crystals_green':mode==='yellow'?'crystals_yellow':mode==='purple'?'crystals_purple':'total';
+    const rows=await sbFetch(`scores?select=username,crystals_green,crystals_yellow,crystals_purple,total&order=${col}.desc&limit=20`);
+    if(!rows.length){body.innerHTML='<tr><td colspan="6" style="color:rgba(255,255,255,0.2);padding:12px 8px">NO SCORES YET</td></tr>';return;}
+    body.innerHTML=rows.map((r,i)=>`
+      <tr class="${currentUser&&r.username===currentUser.username?'me':''}">
+        <td class="lb-rank">${i+1}</td>
+        <td class="lb-name">${r.username}</td>
+        <td class="lb-g">${r.crystals_green}</td>
+        <td class="lb-y">${r.crystals_yellow}</td>
+        <td class="lb-p">${r.crystals_purple}</td>
+        <td class="lb-total">${r.total}</td>
+      </tr>`).join('');
+  }catch(e){err.textContent='COULD NOT LOAD: '+e.message;}
+}
+
+// ── Stars background ───────────────────────────────────────────────────────
+const starsCanvas=document.getElementById('stars');
+const sctx=starsCanvas.getContext('2d');
+let SW,SH;
+function resizeStars(){SW=starsCanvas.width=window.innerWidth;SH=starsCanvas.height=window.innerHeight;}
+resizeStars(); window.addEventListener('resize',resizeStars);
+
+const STAR_COUNT=120;
+const stars=Array.from({length:STAR_COUNT},()=>({
+  x:Math.random()*2000,y:Math.random()*2000,
+  r:0.5+Math.random()*1.8,
+  vx:-0.08-Math.random()*0.18,
+  vy:-0.03+Math.random()*0.06-0.015,
+  alpha:0.15+Math.random()*0.55
+}));
+
+function drawStars(){
+  sctx.clearRect(0,0,SW,SH);
+  for(const s of stars){
+    s.x+=s.vx; s.y+=s.vy;
+    if(s.x<-10) s.x=SW+10;
+    if(s.x>SW+10) s.x=-10;
+    if(s.y<-10) s.y=SH+10;
+    if(s.y>SH+10) s.y=-10;
+    sctx.beginPath();
+    sctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    sctx.fillStyle=`rgba(255,255,255,${s.alpha})`;
+    sctx.fill();
+  }
+  if(document.getElementById('menu').style.display!=='none')
+    requestAnimationFrame(drawStars);
+}
+drawStars();
+
+// ── Game canvas ────────────────────────────────────────────────────────────
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+let W,H;
+function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;}
+resize(); window.addEventListener('resize',resize);
+
+const TILE=40,CHUNK=24,CS=TILE*CHUNK,CRYSTAL_RARITY=200;
+const CCOLORS={g:'#00ff88',y:'#ffd700',p:'#bf5fff'};
+
+const chunkMap=new Map(),crystals=[],particles=[];
+const counts={g:0,y:0,p:0};
+const player={wx:0,wy:0,r:14,speed:3.6};
+let camX=0,camY=0,gameRunning=false;
+const keys={};
+window.addEventListener('keydown',e=>{if(gameRunning){keys[e.key.toLowerCase()]=true;e.preventDefault();}});
+window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+
+// ── RNG ────────────────────────────────────────────────────────────────────
+let WORLD_SEED=Math.floor(Math.random()*0xFFFFFF);
+function makeRng(seed){let s=seed>>>0;return()=>{s^=s<<13;s^=s>>>17;s^=s<<5;return(s>>>0)/0xFFFFFFFF;};}
+function chunkSeed(cx,cy){return Math.imul(cx^WORLD_SEED,374761393)^Math.imul(cy^(WORLD_SEED*7),1234567891);}
+
+// ── World gen ──────────────────────────────────────────────────────────────
+function generateChunk(cx,cy){
+  const r=makeRng(chunkSeed(cx,cy)),T=CHUNK;
+  const tiles=new Uint8Array(T*T);
+  const carve=(rx,ry,rw,rh)=>{
+    const x0=Math.max(1,rx),y0=Math.max(1,ry),x1=Math.min(T-2,rx+rw-1),y1=Math.min(T-2,ry+rh-1);
+    for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++)tiles[ty*T+tx]=1;
+  };
+  const archetype=Math.floor(r()*6),rooms=[];
+  if(archetype===0){
+    const hw=6+Math.floor(r()*4),hh=6+Math.floor(r()*4),hx=Math.floor(T/2-hw/2),hy=Math.floor(T/2-hh/2);
+    carve(hx,hy,hw,hh);rooms.push({cx:Math.floor(T/2),cy:Math.floor(T/2)});
+    const cw=3+Math.floor(r()*2);
+    carve(Math.floor(T/2-cw/2),1,cw,hy);carve(Math.floor(T/2-cw/2),hy+hh,cw,T-hy-hh-1);
+    carve(1,Math.floor(T/2-cw/2),hx,cw);carve(hx+hw,Math.floor(T/2-cw/2),T-hx-hw-1,cw);
+  } else if(archetype===1){
+    const sy=4+Math.floor(r()*(T-8)),sh=3+Math.floor(r()*3);
+    carve(1,sy,T-2,sh);rooms.push({cx:Math.floor(T/2),cy:sy+Math.floor(sh/2)});
+    const nb=2+Math.floor(r()*3);
+    for(let i=0;i<nb;i++){const rw=3+Math.floor(r()*5),rh=3+Math.floor(r()*5),rx=1+Math.floor(r()*(T-rw-2)),ry=r()<.5?sy-rh:sy+sh;carve(rx,ry,rw,rh);rooms.push({cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});}
+  } else if(archetype===2){
+    const sx=4+Math.floor(r()*(T-8)),sw=3+Math.floor(r()*3);
+    carve(sx,1,sw,T-2);rooms.push({cx:sx+Math.floor(sw/2),cy:Math.floor(T/2)});
+    const nb=2+Math.floor(r()*3);
+    for(let i=0;i<nb;i++){const rw=3+Math.floor(r()*5),rh=3+Math.floor(r()*5),ry=1+Math.floor(r()*(T-rh-2)),rx=r()<.5?sx-rw:sx+sw;carve(rx,ry,rw,rh);rooms.push({cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});}
+  } else if(archetype===3){
+    const cols=3,rows2=3,cellW=Math.floor((T-2)/cols),cellH=Math.floor((T-2)/rows2);
+    for(let row=0;row<rows2;row++)for(let col=0;col<cols;col++){const rw=3+Math.floor(r()*Math.floor(cellW*.6)),rh=3+Math.floor(r()*Math.floor(cellH*.6)),rx=1+col*cellW+Math.floor(r()*(cellW-rw)),ry=1+row*cellH+Math.floor(r()*(cellH-rh));carve(rx,ry,rw,rh);rooms.push({cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});}
+  } else if(archetype===4){
+    const nb=3+Math.floor(r()*4);
+    for(let i=0;i<nb;i++){const rw=5+Math.floor(r()*8),rh=5+Math.floor(r()*8),rx=1+Math.floor(r()*(T-rw-2)),ry=1+Math.floor(r()*(T-rh-2));carve(rx,ry,rw,rh);rooms.push({cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});}
+  } else {
+    const nb=6+Math.floor(r()*5);
+    for(let i=0;i<nb;i++){const rw=2+Math.floor(r()*4),rh=2+Math.floor(r()*4),rx=1+Math.floor(r()*(T-rw-2)),ry=1+Math.floor(r()*(T-rh-2));carve(rx,ry,rw,rh);rooms.push({cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});}
+  }
   rooms.sort((a,b)=>a.cx-b.cx);
   for(let i=1;i<rooms.length;i++){
-    const a=rooms[i-1], b=rooms[i], cw=2+Math.floor(r()*3);
-    const x0=Math.min(a.cx,b.cx), x1=Math.max(a.cx,b.cx);
-    for(let x=x0;x<=x1;x++)
-      for(let d=-cw;d<=cw;d++){ const ty=a.cy+d; if(ty>0&&ty<T-1) tiles[ty*T+x]=1; }
-    const y0=Math.min(a.cy,b.cy), y1=Math.max(a.cy,b.cy);
-    for(let y=y0;y<=y1;y++)
-      for(let d=-cw;d<=cw;d++){ const tx=b.cx+d; if(tx>0&&tx<T-1) tiles[y*T+tx]=1; }
+    const a=rooms[i-1],b=rooms[i],cw=2+Math.floor(r()*3);
+    const x0=Math.min(a.cx,b.cx),x1=Math.max(a.cx,b.cx);
+    for(let x=x0;x<=x1;x++)for(let d=-cw;d<=cw;d++){const ty=a.cy+d;if(ty>0&&ty<T-1)tiles[ty*T+x]=1;}
+    const y0=Math.min(a.cy,b.cy),y1=Math.max(a.cy,b.cy);
+    for(let y=y0;y<=y1;y++)for(let d=-cw;d<=cw;d++){const tx=b.cx+d;if(tx>0&&tx<T-1)tiles[y*T+tx]=1;}
   }
-
-  // ── Edge openings — position spread across the full edge, not just centre ──
-  // Each edge gets a random position anywhere from tile 3 to T-4.
-  // We use a deterministic hash so neighbouring chunks always agree on
-  // the crossing position (chunk A's right edge == chunk B's left edge).
-
-  // Hash helpers — same result regardless of which side calls it
-  const hh = (a,b) => Math.imul(a^WORLD_SEED,1000003)^Math.imul(b^(WORLD_SEED*13),999983);
-
-  // For horizontal borders (top/bottom) the crossing is an X position.
-  // Neighbour agreement: top edge of (cx,cy) == bottom edge of (cx,cy-1)
-  //   → key uses the LOWER chunk coords pair.
-  const topEdgeX   = 3 + Math.abs(hh(cx, cy))   % (T-6);   // top of this chunk
-  const botEdgeX   = 3 + Math.abs(hh(cx, cy+1))  % (T-6);  // bottom (== top of chunk below)
-  const leftEdgeY  = 3 + Math.abs(hh(cx, cy))    % (T-6);  // left (== right of chunk left)
-  const rightEdgeY = 3 + Math.abs(hh(cx+1, cy))  % (T-6);  // right
-
-  const CW = 2; // corridor half-width (total 2*CW+1 tiles wide)
-
-  // carve the opening strips at each edge
-  const openStrip = (isTop, isBottom, isLeft, isRight, pos) => {
-    for(let d=-CW;d<=CW;d++){
-      const p=pos+d; if(p<1||p>=T-1) continue;
-      if(isTop)    for(let t=0;t<3;t++) tiles[t*T+p]=1;
-      if(isBottom) for(let t=0;t<3;t++) tiles[(T-1-t)*T+p]=1;
-      if(isLeft)   for(let t=0;t<3;t++) tiles[p*T+t]=1;
-      if(isRight)  for(let t=0;t<3;t++) tiles[p*T+(T-1-t)]=1;
-    }
-  };
-  openStrip(true,  false, false, false, topEdgeX);
-  openStrip(false, true,  false, false, botEdgeX);
-  openStrip(false, false, true,  false, leftEdgeY);
-  openStrip(false, false, false, true,  rightEdgeY);
-
-  // ── S-curve: connect each edge opening to the nearest room ──
-  // Instead of a plain L, we add a midpoint kink so the path bends twice.
-  const findNearestRoom = (ex,ey) => {
-    let best=rooms[0], bd=99999;
-    for(const rm of rooms){ const d=Math.abs(rm.cx-ex)+Math.abs(rm.cy-ey); if(d<bd){bd=d;best=rm;} }
-    return best;
-  };
-
-  const carvePath = (ax,ay,bx,by,cw) => {
-    // S-curve: go halfway on first axis, then shift on second, then finish
-    const mx = Math.floor((ax+bx)/2);
-    const my = Math.floor((ay+by)/2);
-    // pick kink direction randomly but deterministically
-    const useHorizFirst = (Math.abs(hh(ax^ay,bx^by)) % 2) === 0;
-    if(useHorizFirst){
-      // horizontal to midX, then vertical, then horizontal to dest
-      const kx = ax + Math.floor((bx-ax)*( 0.3 + (Math.abs(hh(ax,by))%40)/100 ));
-      for(let x=Math.min(ax,kx);x<=Math.max(ax,kx);x++)
-        for(let d=-cw;d<=cw;d++){ const ty=ay+d; if(ty>0&&ty<T-1&&x>0&&x<T-1) tiles[ty*T+x]=1; }
-      for(let y=Math.min(ay,by);y<=Math.max(ay,by);y++)
-        for(let d=-cw;d<=cw;d++){ const tx=kx+d; if(tx>0&&tx<T-1&&y>0&&y<T-1) tiles[y*T+tx]=1; }
-      for(let x=Math.min(kx,bx);x<=Math.max(kx,bx);x++)
-        for(let d=-cw;d<=cw;d++){ const ty=by+d; if(ty>0&&ty<T-1&&x>0&&x<T-1) tiles[ty*T+x]=1; }
+  const hh=(a,b)=>Math.imul(a^WORLD_SEED,1000003)^Math.imul(b^(WORLD_SEED*13),999983);
+  const topEdgeX=3+Math.abs(hh(cx,cy))%(T-6),botEdgeX=3+Math.abs(hh(cx,cy+1))%(T-6);
+  const leftEdgeY=3+Math.abs(hh(cx,cy))%(T-6),rightEdgeY=3+Math.abs(hh(cx+1,cy))%(T-6);
+  const CW=2;
+  const openStrip=(top,bot,left,right,pos)=>{for(let d=-CW;d<=CW;d++){const p=pos+d;if(p<1||p>=T-1)continue;if(top)for(let t=0;t<3;t++)tiles[t*T+p]=1;if(bot)for(let t=0;t<3;t++)tiles[(T-1-t)*T+p]=1;if(left)for(let t=0;t<3;t++)tiles[p*T+t]=1;if(right)for(let t=0;t<3;t++)tiles[p*T+(T-1-t)]=1;}};
+  openStrip(true,false,false,false,topEdgeX);openStrip(false,true,false,false,botEdgeX);
+  openStrip(false,false,true,false,leftEdgeY);openStrip(false,false,false,true,rightEdgeY);
+  const findRoom=(ex,ey)=>{let best=rooms[0],bd=99999;for(const rm of rooms){const d=Math.abs(rm.cx-ex)+Math.abs(rm.cy-ey);if(d<bd){bd=d;best=rm;}}return best;};
+  const carvePath=(ax,ay,bx,by,cw2)=>{
+    const horiz=(Math.abs(hh(ax^ay,bx^by))%2)===0;
+    if(horiz){
+      const kx=ax+Math.floor((bx-ax)*(.3+(Math.abs(hh(ax,by))%40)/100));
+      for(let x=Math.min(ax,kx);x<=Math.max(ax,kx);x++)for(let d=-cw2;d<=cw2;d++){const ty=ay+d;if(ty>0&&ty<T-1&&x>0&&x<T-1)tiles[ty*T+x]=1;}
+      for(let y=Math.min(ay,by);y<=Math.max(ay,by);y++)for(let d=-cw2;d<=cw2;d++){const tx=kx+d;if(tx>0&&tx<T-1&&y>0&&y<T-1)tiles[y*T+tx]=1;}
+      for(let x=Math.min(kx,bx);x<=Math.max(kx,bx);x++)for(let d=-cw2;d<=cw2;d++){const ty=by+d;if(ty>0&&ty<T-1&&x>0&&x<T-1)tiles[ty*T+x]=1;}
     } else {
-      const ky = ay + Math.floor((by-ay)*( 0.3 + (Math.abs(hh(ay,bx))%40)/100 ));
-      for(let y=Math.min(ay,ky);y<=Math.max(ay,ky);y++)
-        for(let d=-cw;d<=cw;d++){ const tx=ax+d; if(tx>0&&tx<T-1&&y>0&&y<T-1) tiles[y*T+tx]=1; }
-      for(let x=Math.min(ax,bx);x<=Math.max(ax,bx);x++)
-        for(let d=-cw;d<=cw;d++){ const ty=ky+d; if(ty>0&&ty<T-1&&x>0&&x<T-1) tiles[ty*T+x]=1; }
-      for(let y=Math.min(ky,by);y<=Math.max(ky,by);y++)
-        for(let d=-cw;d<=cw;d++){ const tx=bx+d; if(tx>0&&tx<T-1&&y>0&&y<T-1) tiles[y*T+tx]=1; }
+      const ky=ay+Math.floor((by-ay)*(.3+(Math.abs(hh(ay,bx))%40)/100));
+      for(let y=Math.min(ay,ky);y<=Math.max(ay,ky);y++)for(let d=-cw2;d<=cw2;d++){const tx=ax+d;if(tx>0&&tx<T-1&&y>0&&y<T-1)tiles[y*T+tx]=1;}
+      for(let x=Math.min(ax,bx);x<=Math.max(ax,bx);x++)for(let d=-cw2;d<=cw2;d++){const ty=ky+d;if(ty>0&&ty<T-1&&x>0&&x<T-1)tiles[ty*T+x]=1;}
+      for(let y=Math.min(ky,by);y<=Math.max(ky,by);y++)for(let d=-cw2;d<=cw2;d++){const tx=bx+d;if(tx>0&&tx<T-1&&y>0&&y<T-1)tiles[y*T+tx]=1;}
     }
   };
-
-  const edgePts=[
-    {ex:topEdgeX,  ey:1},
-    {ex:botEdgeX,  ey:T-2},
-    {ex:1,         ey:leftEdgeY},
-    {ex:T-2,       ey:rightEdgeY},
-  ];
-  for(const {ex,ey} of edgePts){
-    if(ex<1||ex>=T-1||ey<1||ey>=T-1) continue;
-    const rm = findNearestRoom(ex,ey);
-    carvePath(ex,ey,rm.cx,rm.cy,1);
-  }
-
-  // rare crystals
-  const floor=[];
-  for(let i=0;i<T*T;i++) if(tiles[i]===1) floor.push(i);
-  for(let i=floor.length-1;i>0;i--){ const j=Math.floor(r()*(i+1)); [floor[i],floor[j]]=[floor[j],floor[i]]; }
+  [{ex:topEdgeX,ey:1},{ex:botEdgeX,ey:T-2},{ex:1,ey:leftEdgeY},{ex:T-2,ey:rightEdgeY}].forEach(({ex,ey})=>{
+    if(ex<1||ex>=T-1||ey<1||ey>=T-1)return;
+    const rm=findRoom(ex,ey);carvePath(ex,ey,rm.cx,rm.cy,1);
+  });
+  const floor=[];for(let i=0;i<T*T;i++)if(tiles[i]===1)floor.push(i);
+  for(let i=floor.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[floor[i],floor[j]]=[floor[j],floor[i]];}
   const nc=Math.max(0,Math.floor(floor.length/CRYSTAL_RARITY));
-  const types=['g','y','p'];
-  const cc=[];
-  for(let i=0;i<nc;i++){
-    const idx=floor[i];
-    cc.push({
-      wx:cx*CS+(idx%T)*TILE+TILE/2,
-      wy:cy*CS+Math.floor(idx/T)*TILE+TILE/2,
-      type:types[Math.floor(r()*3)], r:6, collected:false
-    });
-  }
-
-  const data={tiles,crystals:cc};
-  chunkMap.set(cx+','+cy, data);
-  crystals.push(...cc);
-  return data;
+  const types=['g','y','p'];const cc=[];
+  for(let i=0;i<nc;i++){const idx=floor[i];cc.push({wx:cx*CS+(idx%T)*TILE+TILE/2,wy:cy*CS+Math.floor(idx/T)*TILE+TILE/2,type:types[Math.floor(r()*3)],r:6,collected:false});}
+  const data={tiles,crystals:cc};chunkMap.set(cx+','+cy,data);crystals.push(...cc);return data;
 }
 
-function getChunk(cx,cy){
-  const k=cx+','+cy;
-  if(!chunkMap.has(k)) generateChunk(cx,cy);
-  return chunkMap.get(k);
-}
+function getChunk(cx,cy){const k=cx+','+cy;if(!chunkMap.has(k))generateChunk(cx,cy);return chunkMap.get(k);}
+function tileAtWorld(wx,wy){const cx=Math.floor(wx/CS),cy=Math.floor(wy/CS),d=getChunk(cx,cy),tx=Math.max(0,Math.min(CHUNK-1,Math.floor((wx-cx*CS)/TILE))),ty=Math.max(0,Math.min(CHUNK-1,Math.floor((wy-cy*CS)/TILE)));return d.tiles[ty*CHUNK+tx];}
+function tileNeighbour(data,cx,cy,tx,ty){if(tx<0)return getChunk(cx-1,cy).tiles[ty*CHUNK+(CHUNK-1)];if(tx>=CHUNK)return getChunk(cx+1,cy).tiles[ty*CHUNK+0];if(ty<0)return getChunk(cx,cy-1).tiles[(CHUNK-1)*CHUNK+tx];if(ty>=CHUNK)return getChunk(cx,cy+1).tiles[0*CHUNK+tx];return data.tiles[ty*CHUNK+tx];}
+function tryMove(dx,dy){const r=player.r-1,nx=player.wx+dx,ny=player.wy+dy;if(tileAtWorld(nx+r,player.wy-r)&&tileAtWorld(nx+r,player.wy+r)&&tileAtWorld(nx-r,player.wy-r)&&tileAtWorld(nx-r,player.wy+r))player.wx=nx;if(tileAtWorld(player.wx+r,ny-r)&&tileAtWorld(player.wx+r,ny+r)&&tileAtWorld(player.wx-r,ny-r)&&tileAtWorld(player.wx-r,ny+r))player.wy=ny;}
+function updateCamera(){camX+=(player.wx-W/2-camX)*.1;camY+=(player.wy-H/2-camY)*.1;}
+function getVisible(){const list=[],x0=Math.floor(camX/CS)-1,y0=Math.floor(camY/CS)-1,x1=Math.floor((camX+W)/CS)+1,y1=Math.floor((camY+H)/CS)+1;for(let cy=y0;cy<=y1;cy++)for(let cx=x0;cx<=x1;cx++)list.push({cx,cy,data:getChunk(cx,cy)});return list;}
 
-function tileAtWorld(wx,wy){
-  const cx=Math.floor(wx/CS), cy=Math.floor(wy/CS);
-  const d=getChunk(cx,cy);
-  const tx=Math.max(0,Math.min(CHUNK-1,Math.floor((wx-cx*CS)/TILE)));
-  const ty=Math.max(0,Math.min(CHUNK-1,Math.floor((wy-cy*CS)/TILE)));
-  return d.tiles[ty*CHUNK+tx];
-}
+function buildWallPath(vis){ctx.beginPath();for(const{cx,cy,data}of vis){const ox=cx*CS-camX,oy=cy*CS-camY;for(let ty=0;ty<CHUNK;ty++)for(let tx=0;tx<CHUNK;tx++){if(data.tiles[ty*CHUNK+tx]!==1)continue;const sx=ox+tx*TILE,sy=oy+ty*TILE;if(tileNeighbour(data,cx,cy,tx,ty-1)===0){ctx.moveTo(sx,sy);ctx.lineTo(sx+TILE,sy);}if(tileNeighbour(data,cx,cy,tx,ty+1)===0){ctx.moveTo(sx,sy+TILE);ctx.lineTo(sx+TILE,sy+TILE);}if(tileNeighbour(data,cx,cy,tx-1,ty)===0){ctx.moveTo(sx,sy);ctx.lineTo(sx,sy+TILE);}if(tileNeighbour(data,cx,cy,tx+1,ty)===0){ctx.moveTo(sx+TILE,sy);ctx.lineTo(sx+TILE,sy+TILE);}}}}
+function drawWalls(vis){ctx.save();buildWallPath(vis);ctx.lineWidth=10;ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.shadowColor='#fff';ctx.shadowBlur=18;ctx.stroke();buildWallPath(vis);ctx.lineWidth=2;ctx.strokeStyle='#ffffff';ctx.shadowColor='rgba(200,230,255,0.7)';ctx.shadowBlur=5;ctx.stroke();ctx.restore();}
+function drawCrystals(){for(const c of crystals){if(c.collected)continue;const sx=c.wx-camX,sy=c.wy-camY;if(sx<-40||sx>W+40||sy<-40||sy>H+40)continue;const col=CCOLORS[c.type],r=c.r;ctx.save();ctx.translate(sx,sy);ctx.beginPath();ctx.moveTo(0,-r);ctx.lineTo(r*.6,0);ctx.lineTo(0,r);ctx.lineTo(-r*.6,0);ctx.closePath();ctx.fillStyle=col;ctx.shadowColor=col;ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;ctx.restore();}}
+function drawPlayer(){const sx=player.wx-camX,sy=player.wy-camY;ctx.beginPath();ctx.arc(sx,sy,player.r,0,Math.PI*2);ctx.fillStyle='#ff3333';ctx.shadowColor='#ff3333';ctx.shadowBlur=6;ctx.fill();ctx.shadowBlur=0;}
+function spawnParticles(wx,wy,col){for(let i=0;i<10;i++){const a=Math.random()*Math.PI*2,sp=.8+Math.random()*3;particles.push({x:wx,y:wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color:col,life:1,r:2+Math.random()*2});}}
+function updateParticles(){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=.9;p.vy*=.9;p.life-=.04;if(p.life<=0){particles.splice(i,1);continue;}ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.globalAlpha=p.life*.8;ctx.fill();ctx.globalAlpha=1;}}
+function checkCrystals(){for(const c of crystals){if(c.collected)continue;const dx=c.wx-player.wx,dy=c.wy-player.wy;if(dx*dx+dy*dy<(player.r+c.r+10)**2){c.collected=true;counts[c.type]++;spawnParticles(c.wx,c.wy,CCOLORS[c.type]);document.getElementById('c'+c.type).textContent=counts[c.type];}}}
 
-function tileNeighbour(data,cx,cy,tx,ty){
-  if(tx<0)      return getChunk(cx-1,cy).tiles[ty*CHUNK+(CHUNK-1)];
-  if(tx>=CHUNK) return getChunk(cx+1,cy).tiles[ty*CHUNK+0];
-  if(ty<0)      return getChunk(cx,cy-1).tiles[(CHUNK-1)*CHUNK+tx];
-  if(ty>=CHUNK) return getChunk(cx,cy+1).tiles[0*CHUNK+tx];
-  return data.tiles[ty*CHUNK+tx];
-}
-
-// ── Movement ───────────────────────────────────────────────────────────────
-function tryMove(dx,dy){
-  const r=player.r-1;
-  const nx=player.wx+dx, ny=player.wy+dy;
-  if(tileAtWorld(nx+r,player.wy-r)&&tileAtWorld(nx+r,player.wy+r)&&
-     tileAtWorld(nx-r,player.wy-r)&&tileAtWorld(nx-r,player.wy+r)) player.wx=nx;
-  if(tileAtWorld(player.wx+r,ny-r)&&tileAtWorld(player.wx+r,ny+r)&&
-     tileAtWorld(player.wx-r,ny-r)&&tileAtWorld(player.wx-r,ny+r)) player.wy=ny;
-}
-
-function updateCamera(){
-  camX+=(player.wx-W/2-camX)*0.1;
-  camY+=(player.wy-H/2-camY)*0.1;
-}
-
-function getVisible(){
-  const list=[];
-  const x0=Math.floor(camX/CS)-1, y0=Math.floor(camY/CS)-1;
-  const x1=Math.floor((camX+W)/CS)+1, y1=Math.floor((camY+H)/CS)+1;
-  for(let cy=y0;cy<=y1;cy++)
-    for(let cx=x0;cx<=x1;cx++)
-      list.push({cx,cy,data:getChunk(cx,cy)});
-  return list;
-}
-
-// ── Wall renderer ──────────────────────────────────────────────────────────
-function buildWallPath(vis){
-  ctx.beginPath();
-  for(const {cx,cy,data} of vis){
-    const ox=cx*CS-camX, oy=cy*CS-camY;
-    for(let ty=0;ty<CHUNK;ty++){
-      for(let tx=0;tx<CHUNK;tx++){
-        if(data.tiles[ty*CHUNK+tx]!==1) continue;
-        const sx=ox+tx*TILE, sy=oy+ty*TILE;
-        if(tileNeighbour(data,cx,cy,tx,ty-1)===0){ ctx.moveTo(sx,sy);       ctx.lineTo(sx+TILE,sy);       }
-        if(tileNeighbour(data,cx,cy,tx,ty+1)===0){ ctx.moveTo(sx,sy+TILE);  ctx.lineTo(sx+TILE,sy+TILE);  }
-        if(tileNeighbour(data,cx,cy,tx-1,ty)===0){ ctx.moveTo(sx,sy);       ctx.lineTo(sx,sy+TILE);       }
-        if(tileNeighbour(data,cx,cy,tx+1,ty)===0){ ctx.moveTo(sx+TILE,sy);  ctx.lineTo(sx+TILE,sy+TILE);  }
-      }
+// ── Save score ─────────────────────────────────────────────────────────────
+document.getElementById('save-btn').addEventListener('click', async()=>{
+  if(!currentUser) return;
+  const btn=document.getElementById('save-btn');
+  const msg=document.getElementById('save-msg');
+  btn.disabled=true;
+  try{
+    // upsert: update if exists, insert otherwise
+    const existing=await sbFetch(`scores?user_id=eq.${currentUser.id}&select=id`);
+    if(existing.length){
+      await sbFetch(`scores?id=eq.${existing[0].id}`,{
+        method:'PATCH',prefer:'return=minimal',
+        body:{crystals_green:counts.g,crystals_yellow:counts.y,crystals_purple:counts.p,saved_at:new Date().toISOString()}
+      });
+    } else {
+      await sbFetch('scores',{method:'POST',prefer:'return=minimal',
+        body:{user_id:currentUser.id,username:currentUser.username,crystals_green:counts.g,crystals_yellow:counts.y,crystals_purple:counts.p}
+      });
     }
-  }
+    msg.style.opacity=1; setTimeout(()=>msg.style.opacity=0,2000);
+  }catch(e){console.error(e);}
+  finally{btn.disabled=false;}
+});
+
+// ── Start game ─────────────────────────────────────────────────────────────
+function startGame(){
+  // reset world
+  chunkMap.clear(); crystals.length=0; particles.length=0;
+  counts.g=0;counts.y=0;counts.p=0;
+  WORLD_SEED=Math.floor(Math.random()*0xFFFFFF);
+  document.getElementById('cg').textContent='0';
+  document.getElementById('cy').textContent='0';
+  document.getElementById('cp').textContent='0';
+
+  for(let cy=-1;cy<=1;cy++)for(let cx=-1;cx<=1;cx++)getChunk(cx,cy);
+  const sc=chunkMap.get('0,0');
+  const spawnFloor=[];
+  for(let i=0;i<CHUNK*CHUNK;i++)if(sc.tiles[i]===1)spawnFloor.push(i);
+  const idx=spawnFloor[Math.floor(Math.random()*spawnFloor.length)];
+  player.wx=(idx%CHUNK)*TILE+TILE/2; player.wy=Math.floor(idx/CHUNK)*TILE+TILE/2;
+  camX=player.wx-W/2; camY=player.wy-H/2;
+
+  document.getElementById('menu').style.display='none';
+  document.getElementById('ui').style.display='block';
+  document.getElementById('hud-user').textContent=currentUser?currentUser.username:'GUEST';
+  if(!currentUser) document.getElementById('save-btn').style.display='none';
+  else document.getElementById('save-btn').style.display='block';
+
+  gameRunning=true;
+  requestAnimationFrame(gameLoop);
 }
 
-function drawWalls(vis){
-  ctx.save();
-  buildWallPath(vis);
-  ctx.lineWidth=10; ctx.strokeStyle='rgba(255,255,255,0.07)';
-  ctx.shadowColor='#fff'; ctx.shadowBlur=18; ctx.stroke();
-  buildWallPath(vis);
-  ctx.lineWidth=2; ctx.strokeStyle='#ffffff';
-  ctx.shadowColor='rgba(200,230,255,0.7)'; ctx.shadowBlur=5; ctx.stroke();
-  ctx.restore();
-}
-
-// ── Crystals ───────────────────────────────────────────────────────────────
-function drawCrystals(){
-  for(const c of crystals){
-    if(c.collected) continue;
-    const sx=c.wx-camX, sy=c.wy-camY;
-    if(sx<-40||sx>W+40||sy<-40||sy>H+40) continue;
-    const col=CCOLORS[c.type], r=c.r;
-    ctx.save(); ctx.translate(sx,sy);
-    ctx.beginPath();
-    ctx.moveTo(0,-r); ctx.lineTo(r*0.6,0); ctx.lineTo(0,r); ctx.lineTo(-r*0.6,0);
-    ctx.closePath();
-    ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=8;
-    ctx.fill(); ctx.shadowBlur=0; ctx.restore();
-  }
-}
-
-// ── Player ─────────────────────────────────────────────────────────────────
-function drawPlayer(){
-  const sx=player.wx-camX, sy=player.wy-camY;
-  ctx.beginPath(); ctx.arc(sx,sy,player.r,0,Math.PI*2);
-  ctx.fillStyle='#ff3333';
-  ctx.shadowColor='#ff3333'; ctx.shadowBlur=6;
-  ctx.fill(); ctx.shadowBlur=0;
-}
-
-// ── Particles ──────────────────────────────────────────────────────────────
-function spawnParticles(wx,wy,col){
-  for(let i=0;i<10;i++){
-    const a=Math.random()*Math.PI*2, sp=0.8+Math.random()*3;
-    particles.push({x:wx,y:wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color:col,life:1,r:2+Math.random()*2});
-  }
-}
-
-function updateParticles(){
-  for(let i=particles.length-1;i>=0;i--){
-    const p=particles[i];
-    p.x+=p.vx; p.y+=p.vy; p.vx*=0.9; p.vy*=0.9; p.life-=0.04;
-    if(p.life<=0){particles.splice(i,1);continue;}
-    ctx.beginPath(); ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);
-    ctx.fillStyle=p.color; ctx.globalAlpha=p.life*0.8; ctx.fill(); ctx.globalAlpha=1;
-  }
-}
-
-// ── Crystal pickup ─────────────────────────────────────────────────────────
-function checkCrystals(){
-  for(const c of crystals){
-    if(c.collected) continue;
-    const dx=c.wx-player.wx, dy=c.wy-player.wy;
-    if(dx*dx+dy*dy<(player.r+c.r+10)**2){
-      c.collected=true; counts[c.type]++;
-      spawnParticles(c.wx,c.wy,CCOLORS[c.type]);
-      document.getElementById('c'+c.type).textContent=counts[c.type];
-    }
-  }
-}
-
-// ── Init ───────────────────────────────────────────────────────────────────
-for(let cy=-1;cy<=1;cy++) for(let cx=-1;cx<=1;cx++) getChunk(cx,cy);
-const sc=chunkMap.get('0,0');
-const spawnFloor=[];
-for(let i=0;i<CHUNK*CHUNK;i++) if(sc.tiles[i]===1) spawnFloor.push(i);
-const spawnIdx=spawnFloor[Math.floor(Math.random()*spawnFloor.length)];
-player.wx=(spawnIdx%CHUNK)*TILE+TILE/2;
-player.wy=Math.floor(spawnIdx/CHUNK)*TILE+TILE/2;
-camX=player.wx-W/2; camY=player.wy-H/2;
-
-// ── Loop ───────────────────────────────────────────────────────────────────
-function loop(){
-  const sp=player.speed;
-  let dx=0, dy=0;
-  if(keys['w']||keys['arrowup'])    dy-=sp;
-  if(keys['s']||keys['arrowdown'])  dy+=sp;
-  if(keys['a']||keys['arrowleft'])  dx-=sp;
-  if(keys['d']||keys['arrowright']) dx+=sp;
-  if(dx&&dy){dx*=0.707;dy*=0.707;}
-  if(dx||dy) tryMove(dx,dy);
+function gameLoop(){
+  if(!gameRunning)return;
+  const sp=player.speed;let dx=0,dy=0;
+  if(keys['w']||keys['arrowup'])dy-=sp;
+  if(keys['s']||keys['arrowdown'])dy+=sp;
+  if(keys['a']||keys['arrowleft'])dx-=sp;
+  if(keys['d']||keys['arrowright'])dx+=sp;
+  if(dx&&dy){dx*=.707;dy*=.707;}
+  if(dx||dy)tryMove(dx,dy);
   updateCamera();
-
-  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
-
+  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
   const vis=getVisible();
-  drawWalls(vis);
-  drawCrystals();
-  updateParticles();
-  drawPlayer();
-  checkCrystals();
-
-  requestAnimationFrame(loop);
+  drawWalls(vis);drawCrystals();updateParticles();drawPlayer();checkCrystals();
+  requestAnimationFrame(gameLoop);
 }
 
-requestAnimationFrame(loop);
+// keep stars running while menu is shown
+function menuStarLoop(){
+  drawStars();
+  if(document.getElementById('menu').style.display!=='none')
+    requestAnimationFrame(menuStarLoop);
+}
+
+// enter key support
+['l-pass','r-pass2'].forEach(id=>{
+  document.getElementById(id)?.addEventListener('keydown',e=>{if(e.key==='Enter'){id.startsWith('l')?doLogin():doRegister();}});
+});
 </script>
 </body>
 </html>
