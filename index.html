@@ -80,7 +80,8 @@ function makeRng(seed){
   let s = seed >>> 0;
   return () => { s^=s<<13; s^=s>>>17; s^=s<<5; return (s>>>0)/0xFFFFFFFF; };
 }
-function chunkSeed(cx,cy){ return Math.imul(cx,374761393)^Math.imul(cy,1234567891); }
+const WORLD_SEED = Math.floor(Math.random()*0xFFFFFF);
+function chunkSeed(cx,cy){ return Math.imul(cx^WORLD_SEED,374761393)^Math.imul(cy^(WORLD_SEED*7),1234567891); }
 
 // ── World generation ───────────────────────────────────────────────────────
 function generateChunk(cx, cy){
