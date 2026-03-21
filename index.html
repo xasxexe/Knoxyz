@@ -94,7 +94,7 @@ function generateChunk(cx, cy){
     for(let ty=y0;ty<=y1;ty++) for(let tx=x0;tx<=x1;tx++) tiles[ty*T+tx]=1;
   };
 
-  const archetype = Math.abs(cx*7+cy*3) % 6;
+  const archetype = Math.floor(r() * 6);
   const rooms = [];
 
   if(archetype===0){
@@ -184,7 +184,7 @@ function generateChunk(cx, cy){
   // the crossing position (chunk A's right edge == chunk B's left edge).
 
   // Hash helpers — same result regardless of which side calls it
-  const hh = (a,b) => Math.imul(a,1000003)^Math.imul(b,999983);
+  const hh = (a,b) => Math.imul(a^WORLD_SEED,1000003)^Math.imul(b^(WORLD_SEED*13),999983);
 
   // For horizontal borders (top/bottom) the crossing is an X position.
   // Neighbour agreement: top edge of (cx,cy) == bottom edge of (cx,cy-1)
