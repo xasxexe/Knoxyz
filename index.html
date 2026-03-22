@@ -1419,6 +1419,7 @@ function startGame(){
       }).catch(()=>{});
   }
 
+  pvx=0;pvy=0;
   playerHP=3; updateHPBar();
   npcs.length=0; bullets.length=0; lastNpcSpawn=performance.now();
   gameRunning=true;
@@ -1501,12 +1502,10 @@ function hitPlayer(){
 }
 
 function drainOneRandom(){
-  // НПС снимает только g/y/p — сначала из counts (сессия), потом storedCounts
-  // Радужные НПС не трогает
+  // снимает 1 из g/y/p (не радужные), сначала из counts потом storedCounts
   const pool=[];
   for(const t of['g','y','p']){
-    if(counts[t]>0) pool.push(t);           // есть сессионные — берём их
-    else if(storedCounts[t]>0) pool.push(t); // нет сессионных — берём сохранённые
+    if(storedCounts[t]+counts[t]>0) pool.push(t);
   }
   if(!pool.length) return;
   const t=pool[Math.floor(Math.random()*pool.length)];
@@ -1602,15 +1601,30 @@ function drawBullets(){
   }
 }
 
+// ice velocity
+let pvx=0,pvy=0;
+const ICE_ACCEL=0.55;   // how fast you speed up
+const ICE_FRICTION=0.82; // how fast you slow down (lower = more ice)
+
 function gameLoop(){
   if(!gameRunning)return;
   const sp=player.speed;let dx=0,dy=0;
-  if(keys['w']||keys['arrowup'])dy-=sp;
-  if(keys['s']||keys['arrowdown'])dy+=sp;
-  if(keys['a']||keys['arrowleft'])dx-=sp;
-  if(keys['d']||keys['arrowright'])dx+=sp;
+  if(keys['w']||keys['arrowup'])   dy-=1;
+  if(keys['s']||keys['arrowdown']) dy+=1;
+  if(keys['a']||keys['arrowleft']) dx-=1;
+  if(keys['d']||keys['arrowright'])dx+=1;
   if(dx&&dy){dx*=.707;dy*=.707;}
-  if(dx||dy)tryMove(dx,dy);
+  // accelerate toward input
+  pvx+=dx*ICE_ACCEL;
+  pvy+=dy*ICE_ACCEL;
+  // clamp to max speed
+  const len=Math.sqrt(pvx*pvx+pvy*pvy);
+  if(len>sp){pvx=pvx/len*sp;pvy=pvy/len*sp;}
+  // friction when no input
+  if(!dx&&!dy){pvx*=ICE_FRICTION;pvy*=ICE_FRICTION;}
+  if(Math.abs(pvx)<0.05)pvx=0;
+  if(Math.abs(pvy)<0.05)pvy=0;
+  if(pvx||pvy)tryMove(pvx,pvy);
   updateCamera();
   ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
   const vis=getVisible();
