@@ -1533,8 +1533,12 @@ function spawnNpc(){
 // Each NPC has a steering state: 'direct' or 'wall_follow' with a direction bias
 function npcCanMove(wx,wy,r){
   const m=r-1;
-  return tileAtWorld(wx+m,wy-m)&&tileAtWorld(wx+m,wy+m)
-      && tileAtWorld(wx-m,wy-m)&&tileAtWorld(wx-m,wy+m);
+  if(!(tileAtWorld(wx+m,wy-m)&&tileAtWorld(wx+m,wy+m)
+     &&tileAtWorld(wx-m,wy-m)&&tileAtWorld(wx-m,wy+m))) return false;
+  // block entry into heal zones
+  if(healAtWorld(wx,wy)||healAtWorld(wx+m,wy)||healAtWorld(wx-m,wy)
+   ||healAtWorld(wx,wy+m)||healAtWorld(wx,wy-m)) return false;
+  return true;
 }
 
 function npcMove(n){
@@ -1570,6 +1574,9 @@ function npcMove(n){
 function updateNpcs(t){
   for(let i=npcs.length-1;i>=0;i--){
     const n=npcs[i];
+    // despawn if too far from player
+    const ddx=n.wx-player.wx, ddy=n.wy-player.wy;
+    if(ddx*ddx+ddy*ddy>1200*1200){ npcs.splice(i,1); continue; }
     npcMove(n);
     // collide with player — push player back
     const dx=player.wx-n.wx, dy=player.wy-n.wy;
