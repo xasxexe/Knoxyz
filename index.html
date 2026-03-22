@@ -464,53 +464,82 @@ function generateChunk(cx,cy){
   const cc=[];
   const pickType=rv=>{if(rv<0.60)return'g';if(rv<0.90)return'y';return'p';};
   for(let i=0;i<nc;i++){const idx=floor[i];cc.push({wx:cx*CS+(idx%T)*TILE+TILE/2,wy:cy*CS+Math.floor(idx/T)*TILE+TILE/2,type:pickType(r()),r:6,collected:false});}
-  // red walls — only in some chunks, only on wall tiles bordering floor
-  if(r()<0.28){
-    for(let ty=1;ty<T-1;ty++){
-      for(let tx=1;tx<T-1;tx++){
-        if(tiles[ty*T+tx]!==0) continue;
-        const adj=tiles[(ty-1)*T+tx]===1||tiles[(ty+1)*T+tx]===1||tiles[ty*T+(tx-1)]===1||tiles[ty*T+(tx+1)]===1;
-        if(adj && r()<0.06) tiles[ty*T+tx]=2; // 2 = red wall
+  // red zones — floor tiles that drain crystals on contact
+  // stored as a Set of "tx,ty" strings; tiles stay =1 (walkable)
+  const redSet=new Set();
+  if(r()<0.30){
+    const nPatches=1+Math.floor(r()*3);
+    for(let p=0;p<nPatches;p++){
+      // find a random floor tile as anchor
+      if(!floor.length) break;
+      const anchor=floor[Math.floor(r()*floor.length)];
+      const ax=anchor%T, ay=Math.floor(anchor/T);
+      // random rectangle size: 1–4 tiles wide, 2–8 tiles tall (or transposed)
+      const pw=1+Math.floor(r()*4), ph=2+Math.floor(r()*7);
+      const transpose=r()<0.5;
+      const fw=transpose?ph:pw, fh=transpose?pw:ph;
+      for(let dy2=0;dy2<fh;dy2++){
+        for(let dx2=0;dx2<fw;dx2++){
+          const tx2=ax+dx2, ty2=ay+dy2;
+          if(tx2>=0&&tx2<T&&ty2>=0&&ty2<T&&tiles[ty2*T+tx2]===1)
+            redSet.add(tx2+','+ty2);
+        }
       }
     }
   }
-  const data={tiles,crystals:cc};chunkMap.set(cx+','+cy,data);crystals.push(...cc);return data;
+  const data={tiles,redSet,crystals:cc};chunkMap.set(cx+','+cy,data);crystals.push(...cc);return data;
 }
 
 function getChunk(cx,cy){const k=cx+','+cy;if(!chunkMap.has(k))generateChunk(cx,cy);return chunkMap.get(k);}
-function tileAtWorld(wx,wy){const cx=Math.floor(wx/CS),cy=Math.floor(wy/CS),d=getChunk(cx,cy),tx=Math.max(0,Math.min(CHUNK-1,Math.floor((wx-cx*CS)/TILE))),ty=Math.max(0,Math.min(CHUNK-1,Math.floor((wy-cy*CS)/TILE)));const t=d.tiles[ty*CHUNK+tx];return t===1?1:0;} // red wall (2) = solid
-function tileTypeAtWorld(wx,wy){const cx=Math.floor(wx/CS),cy=Math.floor(wy/CS),d=getChunk(cx,cy),tx=Math.max(0,Math.min(CHUNK-1,Math.floor((wx-cx*CS)/TILE))),ty=Math.max(0,Math.min(CHUNK-1,Math.floor((wy-cy*CS)/TILE)));return d.tiles[ty*CHUNK+tx];}
+function tileAtWorld(wx,wy){const cx=Math.floor(wx/CS),cy=Math.floor(wy/CS),d=getChunk(cx,cy),tx=Math.max(0,Math.min(CHUNK-1,Math.floor((wx-cx*CS)/TILE))),ty=Math.max(0,Math.min(CHUNK-1,Math.floor((wy-cy*CS)/TILE)));return d.tiles[ty*CHUNK+tx]===1?1:0;}
+function redAtWorld(wx,wy){const cx=Math.floor(wx/CS),cy=Math.floor(wy/CS),d=getChunk(cx,cy),tx=Math.max(0,Math.min(CHUNK-1,Math.floor((wx-cx*CS)/TILE))),ty=Math.max(0,Math.min(CHUNK-1,Math.floor((wy-cy*CS)/TILE)));return d.redSet&&d.redSet.has(tx+','+ty);}
 function tileNeighbour(data,cx,cy,tx,ty){if(tx<0)return getChunk(cx-1,cy).tiles[ty*CHUNK+(CHUNK-1)];if(tx>=CHUNK)return getChunk(cx+1,cy).tiles[ty*CHUNK+0];if(ty<0)return getChunk(cx,cy-1).tiles[(CHUNK-1)*CHUNK+tx];if(ty>=CHUNK)return getChunk(cx,cy+1).tiles[0*CHUNK+tx];return data.tiles[ty*CHUNK+tx];}
 function tryMove(dx,dy){const r=player.r-1,nx=player.wx+dx,ny=player.wy+dy;if(tileAtWorld(nx+r,player.wy-r)&&tileAtWorld(nx+r,player.wy+r)&&tileAtWorld(nx-r,player.wy-r)&&tileAtWorld(nx-r,player.wy+r))player.wx=nx;if(tileAtWorld(player.wx+r,ny-r)&&tileAtWorld(player.wx+r,ny+r)&&tileAtWorld(player.wx-r,ny-r)&&tileAtWorld(player.wx-r,ny+r))player.wy=ny;}
 function updateCamera(){camX+=(player.wx-W/2-camX)*.1;camY+=(player.wy-H/2-camY)*.1;}
 function getVisible(){const list=[],x0=Math.floor(camX/CS)-1,y0=Math.floor(camY/CS)-1,x1=Math.floor((camX+W)/CS)+1,y1=Math.floor((camY+H)/CS)+1;for(let cy=y0;cy<=y1;cy++)for(let cx=x0;cx<=x1;cx++)list.push({cx,cy,data:getChunk(cx,cy)});return list;}
 
-function buildEdgePath(vis, wallVal){
+function buildWhiteWallPath(vis){
   ctx.beginPath();
   for(const{cx,cy,data}of vis){
     const ox=cx*CS-camX,oy=cy*CS-camY;
     for(let ty=0;ty<CHUNK;ty++)for(let tx=0;tx<CHUNK;tx++){
-      if(data.tiles[ty*CHUNK+tx]!==1)continue; // only from floor side
+      if(data.tiles[ty*CHUNK+tx]!==1)continue;
       const sx=ox+tx*TILE,sy=oy+ty*TILE;
-      if(tileNeighbour(data,cx,cy,tx,ty-1)===wallVal){ctx.moveTo(sx,sy);ctx.lineTo(sx+TILE,sy);}
-      if(tileNeighbour(data,cx,cy,tx,ty+1)===wallVal){ctx.moveTo(sx,sy+TILE);ctx.lineTo(sx+TILE,sy+TILE);}
-      if(tileNeighbour(data,cx,cy,tx-1,ty)===wallVal){ctx.moveTo(sx,sy);ctx.lineTo(sx,sy+TILE);}
-      if(tileNeighbour(data,cx,cy,tx+1,ty)===wallVal){ctx.moveTo(sx+TILE,sy);ctx.lineTo(sx+TILE,sy+TILE);}
+      if(tileNeighbour(data,cx,cy,tx,ty-1)===0){ctx.moveTo(sx,sy);ctx.lineTo(sx+TILE,sy);}
+      if(tileNeighbour(data,cx,cy,tx,ty+1)===0){ctx.moveTo(sx,sy+TILE);ctx.lineTo(sx+TILE,sy+TILE);}
+      if(tileNeighbour(data,cx,cy,tx-1,ty)===0){ctx.moveTo(sx,sy);ctx.lineTo(sx,sy+TILE);}
+      if(tileNeighbour(data,cx,cy,tx+1,ty)===0){ctx.moveTo(sx+TILE,sy);ctx.lineTo(sx+TILE,sy+TILE);}
     }
   }
 }
+function drawRedZones(vis){
+  // draw red zones as filled floor overlays
+  ctx.save();
+  for(const{cx,cy,data}of vis){
+    if(!data.redSet||data.redSet.size===0) continue;
+    const ox=cx*CS-camX,oy=cy*CS-camY;
+    for(const key of data.redSet){
+      const[tx,ty]=key.split(',').map(Number);
+      const sx=ox+tx*TILE,sy=oy+ty*TILE;
+      ctx.fillStyle='rgba(255,30,30,0.18)';
+      ctx.fillRect(sx,sy,TILE,TILE);
+      // bright border on all 4 sides
+      ctx.strokeStyle='#ff3333';
+      ctx.lineWidth=1.5;
+      ctx.shadowColor='rgba(255,50,50,0.8)';
+      ctx.shadowBlur=6;
+      ctx.strokeRect(sx+0.75,sy+0.75,TILE-1.5,TILE-1.5);
+      ctx.shadowBlur=0;
+    }
+  }
+  ctx.restore();
+}
 function drawWalls(vis){
   ctx.save();
-  // white walls
-  buildEdgePath(vis,0);
+  buildWhiteWallPath(vis);
   ctx.lineWidth=10;ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.shadowColor='#fff';ctx.shadowBlur=18;ctx.stroke();
-  buildEdgePath(vis,0);
+  buildWhiteWallPath(vis);
   ctx.lineWidth=2;ctx.strokeStyle='#ffffff';ctx.shadowColor='rgba(200,230,255,0.7)';ctx.shadowBlur=5;ctx.stroke();
-  // red walls
-  buildEdgePath(vis,2);
-  ctx.lineWidth=12;ctx.strokeStyle='rgba(255,40,40,0.12)';ctx.shadowColor='#ff2222';ctx.shadowBlur=22;ctx.stroke();
-  buildEdgePath(vis,2);
-  ctx.lineWidth=2;ctx.strokeStyle='#ff3333';ctx.shadowColor='rgba(255,60,60,0.9)';ctx.shadowBlur=8;ctx.stroke();
   ctx.restore();
 }
 function drawCrystals(){for(const c of crystals){if(c.collected)continue;const sx=c.wx-camX,sy=c.wy-camY;if(sx<-40||sx>W+40||sy<-40||sy>H+40)continue;const col=CCOLORS[c.type],r=c.r;ctx.save();ctx.translate(sx,sy);ctx.beginPath();ctx.moveTo(0,-r);ctx.lineTo(r*.6,0);ctx.lineTo(0,r);ctx.lineTo(-r*.6,0);ctx.closePath();ctx.fillStyle=col;ctx.shadowColor=col;ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;ctx.restore();}}
@@ -531,7 +560,7 @@ function checkRedWall(){
     [player.wx+r,player.wy+r],[player.wx-r,player.wy-r],
     [player.wx+r,player.wy-r],[player.wx-r,player.wy+r]
   ];
-  const touching=corners.some(([wx,wy])=>tileTypeAtWorld(wx,wy)===2);
+  const touching=corners.some(([wx,wy])=>redAtWorld(wx,wy));
   const now=performance.now();
   if(touching){
     if(lastRedTime===null) lastRedTime=now;
@@ -667,7 +696,7 @@ function gameLoop(){
   updateCamera();
   ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
   const vis=getVisible();
-  drawWalls(vis);drawCrystals();updateParticles();drawPlayer();checkCrystals();checkRedWall();
+  drawWalls(vis);drawRedZones(vis);drawCrystals();updateParticles();drawPlayer();checkCrystals();checkRedWall();
   requestAnimationFrame(gameLoop);
 }
 
