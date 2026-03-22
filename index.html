@@ -55,6 +55,54 @@
     color:#fff; border-color:rgba(255,255,255,0.6);
     background:rgba(255,255,255,0.04);
   }
+
+  /* HP bar */
+  #hp-bar{
+    position:absolute; bottom:24px; left:50%; transform:translateX(-50%);
+    display:flex; gap:8px; align-items:center; pointer-events:none;
+  }
+  .hp-heart{
+    width:14px; height:14px; position:relative;
+    filter:drop-shadow(0 0 4px #ff3333);
+    transition:opacity .3s;
+  }
+  .hp-heart.lost{ opacity:0.15; filter:none; }
+
+  /* hit flash overlay */
+  #hit-flash{
+    position:fixed; inset:0; pointer-events:none; z-index:15;
+    background:rgba(255,0,0,0); transition:background .08s;
+  }
+  #hit-flash.flash{ background:rgba(255,0,0,0.22); }
+
+  /* death overlay */
+  #death-screen{
+    display:none; position:fixed; inset:0; z-index:30;
+    background:rgba(0,0,0,0.88);
+    flex-direction:column; align-items:center; justify-content:center;
+    font-family:'Orbitron',monospace;
+  }
+  #death-screen.visible{ display:flex; }
+  #death-title{
+    font-size:clamp(32px,6vw,60px); font-weight:900; letter-spacing:8px;
+    color:#ff3333; text-shadow:0 0 30px rgba(255,50,50,0.6);
+    margin-bottom:12px;
+  }
+  #death-sub{
+    font-size:11px; letter-spacing:4px; color:rgba(255,255,255,0.3);
+    margin-bottom:8px;
+  }
+  #death-loss{
+    font-size:12px; letter-spacing:2px; color:rgba(255,100,100,0.6);
+    margin-bottom:40px;
+  }
+  #death-btn{
+    background:transparent; border:1px solid rgba(255,255,255,0.25);
+    color:#fff; font-family:'Orbitron',monospace;
+    font-size:11px; letter-spacing:4px; padding:13px 36px;
+    cursor:pointer; transition:all .25s; pointer-events:all;
+  }
+  #death-btn:hover{ background:rgba(255,255,255,0.06); border-color:rgba(255,255,255,0.6); }
   #save-btn{
     position:absolute;bottom:24px;right:24px;pointer-events:all;
     background:transparent;border:1px solid rgba(255,255,255,0.15);
@@ -343,6 +391,20 @@
   <button id="save-btn">SAVE SCORE</button>
   <div id="save-msg">SAVED</div>
   <button id="back-btn" onclick="exitToMenu()">&#x2190; MENU</button>
+  <div id="hp-bar">
+    <svg class="hp-heart" id="hp1" viewBox="0 0 20 18" fill="#ff3333" xmlns="http://www.w3.org/2000/svg"><path d="M10 16S1 10 1 5a4 4 0 0 1 9-1 4 4 0 0 1 9 1c0 5-9 11-9 11z"/></svg>
+    <svg class="hp-heart" id="hp2" viewBox="0 0 20 18" fill="#ff3333" xmlns="http://www.w3.org/2000/svg"><path d="M10 16S1 10 1 5a4 4 0 0 1 9-1 4 4 0 0 1 9 1c0 5-9 11-9 11z"/></svg>
+    <svg class="hp-heart" id="hp3" viewBox="0 0 20 18" fill="#ff3333" xmlns="http://www.w3.org/2000/svg"><path d="M10 16S1 10 1 5a4 4 0 0 1 9-1 4 4 0 0 1 9 1c0 5-9 11-9 11z"/></svg>
+  </div>
+  <div id="hit-flash"></div>
+</div>
+
+<!-- Death screen -->
+<div id="death-screen">
+  <div id="death-title">YOU DIED</div>
+  <div id="death-sub">THE NPC GOT YOU</div>
+  <div id="death-loss" id="death-loss"></div>
+  <button id="death-btn" onclick="respawnToMenu()">BACK TO MENU</button>
 </div>
 
 <!-- MENU -->
@@ -1357,8 +1419,179 @@ function startGame(){
       }).catch(()=>{});
   }
 
+  playerHP=3; updateHPBar();
+  npcs.length=0; bullets.length=0; lastNpcSpawn=performance.now();
   gameRunning=true;
   requestAnimationFrame(gameLoop);
+}
+
+// ── NPC system ────────────────────────────────────────────────────────────
+const npcs = [];
+const bullets = [];
+let playerHP = 3;
+let lastNpcSpawn = 0;
+const NPC_SPAWN_INTERVAL = 18000; // spawn every 18s
+const NPC_SPEED = 1.1;
+const BULLET_SPEED = 4.5;
+const BULLET_RATE = 333; // ms between shots (3/sec)
+
+function spawnNpc(){
+  // spawn on a floor tile near player but not too close
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 400 + Math.random() * 300;
+  const wx = player.wx + Math.cos(angle) * dist;
+  const wy = player.wy + Math.sin(angle) * dist;
+  if(!tileAtWorld(wx,wy)) return; // only on floor
+  npcs.push({ wx, wy, r:14, lastShot:0, hp:1 });
+}
+
+function updateNpcs(t){
+  for(let i=npcs.length-1;i>=0;i--){
+    const n=npcs[i];
+    // move toward player
+    const dx=player.wx-n.wx, dy=player.wy-n.wy;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist>20){
+      const nx=n.wx+dx/dist*NPC_SPEED;
+      const ny=n.wy+dy/dist*NPC_SPEED;
+      if(tileAtWorld(nx,n.wy)) n.wx=nx;
+      if(tileAtWorld(n.wx,ny)) n.wy=ny;
+    }
+    // shoot burst of 3 bullets every second
+    if(t-n.lastShot>1000){
+      n.lastShot=t;
+      for(let b=0;b<3;b++){
+        const spread=(Math.random()-.5)*0.3;
+        const a=Math.atan2(player.wy-n.wy,player.wx-n.wx)+spread;
+        bullets.push({
+          wx:n.wx, wy:n.wy,
+          vx:Math.cos(a)*BULLET_SPEED,
+          vy:Math.sin(a)*BULLET_SPEED,
+          life:120, fromNpc:true
+        });
+      }
+    }
+  }
+}
+
+function updateBullets(){
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+    b.wx+=b.vx; b.wy+=b.vy; b.life--;
+    if(b.life<=0||!tileAtWorld(b.wx,b.wy)){bullets.splice(i,1);continue;}
+    // hit player
+    const dx=b.wx-player.wx, dy=b.wy-player.wy;
+    if(dx*dx+dy*dy<(player.r+5)**2){
+      bullets.splice(i,1);
+      hitPlayer();
+    }
+  }
+}
+
+function hitPlayer(){
+  playerHP--;
+  updateHPBar();
+  // hit flash
+  const fl=document.getElementById('hit-flash');
+  fl.classList.add('flash');
+  setTimeout(()=>fl.classList.remove('flash'),120);
+  // drain 5 random crystals
+  for(let i=0;i<5;i++) drainOneRandom();
+  if(playerHP<=0) triggerDeath();
+}
+
+function drainOneRandom(){
+  const pool=[];
+  for(const t of['g','y','p','r']){
+    const total=storedCounts[t]+counts[t];
+    if(total>0) pool.push(t);
+  }
+  if(!pool.length) return;
+  const t=pool[Math.floor(Math.random()*pool.length)];
+  if(counts[t]>0) counts[t]--;
+  else storedCounts[t]--;
+  const id=t==='r'?'cr':'c'+t;
+  document.getElementById(id).textContent=storedCounts[t]+counts[t];
+  scheduleAutoSave();
+}
+
+function updateHPBar(){
+  for(let i=1;i<=3;i++){
+    const el=document.getElementById('hp'+i);
+    if(el) el.classList.toggle('lost', i>playerHP);
+  }
+}
+
+function triggerDeath(){
+  gameRunning=false;
+  // lose 75% of session crystals
+  const lostG=Math.floor(counts.g*.75);
+  const lostY=Math.floor(counts.y*.75);
+  const lostP=Math.floor(counts.p*.75);
+  const lostR=Math.floor(counts.r*.75);
+  counts.g-=lostG; counts.y-=lostY; counts.p-=lostP; counts.r-=lostR;
+  scheduleAutoSave();
+  // show death screen
+  const ds=document.getElementById('death-screen');
+  document.getElementById('death-loss').textContent=
+    `LOST: ${lostG}G · ${lostY}Y · ${lostP}P · ${lostR}✦ (75% OF SESSION)`;
+  ds.classList.add('visible');
+}
+
+function respawnToMenu(){
+  document.getElementById('death-screen').classList.remove('visible');
+  playerHP=3;
+  npcs.length=0; bullets.length=0;
+  exitToMenu();
+}
+
+function drawNpcs(){
+  for(const n of npcs){
+    const sx=n.wx-camX, sy=n.wy-camY;
+    if(sx<-60||sx>W+60||sy<-60||sy>H+60) continue;
+    // red body
+    ctx.beginPath(); ctx.arc(sx,sy,n.r,0,Math.PI*2);
+    ctx.fillStyle='#cc0000';
+    ctx.shadowColor='#ff0000'; ctx.shadowBlur=12;
+    ctx.fill(); ctx.shadowBlur=0;
+    // skull
+    ctx.save(); ctx.translate(sx,sy);
+    const s=n.r*0.7;
+    // skull head
+    ctx.beginPath(); ctx.arc(0,-s*0.1,s*0.55,0,Math.PI*2);
+    ctx.fillStyle='#000'; ctx.fill();
+    // skull jaw
+    ctx.fillRect(-s*0.35,s*0.1,s*0.7,s*0.38);
+    // eyes
+    ctx.fillStyle='#cc0000';
+    ctx.beginPath(); ctx.arc(-s*0.18,-s*0.12,s*0.13,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( s*0.18,-s*0.12,s*0.13,0,Math.PI*2); ctx.fill();
+    // nose
+    ctx.beginPath(); ctx.arc(0,s*0.08,s*0.08,0,Math.PI*2); ctx.fill();
+    // teeth gaps
+    ctx.fillStyle='#cc0000';
+    ctx.fillRect(-s*0.32,s*0.12,s*0.18,s*0.28);
+    ctx.fillRect( s*0.14,s*0.12,s*0.18,s*0.28);
+    ctx.restore();
+    // gun barrel — short line toward player
+    const ang=Math.atan2(player.wy-n.wy,player.wx-n.wx);
+    ctx.beginPath();
+    ctx.moveTo(sx+Math.cos(ang)*n.r, sy+Math.sin(ang)*n.r);
+    ctx.lineTo(sx+Math.cos(ang)*(n.r+14), sy+Math.sin(ang)*(n.r+14));
+    ctx.strokeStyle='rgba(255,255,255,0.7)'; ctx.lineWidth=3;
+    ctx.shadowColor='#fff'; ctx.shadowBlur=4;
+    ctx.stroke(); ctx.shadowBlur=0;
+  }
+}
+
+function drawBullets(){
+  for(const b of bullets){
+    const sx=b.wx-camX, sy=b.wy-camY;
+    ctx.beginPath(); ctx.arc(sx,sy,4,0,Math.PI*2);
+    ctx.fillStyle='#ff4400';
+    ctx.shadowColor='#ff6600'; ctx.shadowBlur=8;
+    ctx.fill(); ctx.shadowBlur=0;
+  }
 }
 
 function gameLoop(){
@@ -1373,7 +1606,13 @@ function gameLoop(){
   updateCamera();
   ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
   const vis=getVisible();
-  drawWalls(vis);drawRedZones(vis);drawCrystals();updateParticles();drawPlayer();checkCrystals();checkRedWall();
+  const t=performance.now();
+  // spawn NPC periodically
+  if(t-lastNpcSpawn>NPC_SPAWN_INTERVAL){ lastNpcSpawn=t; spawnNpc(); }
+  updateNpcs(t); updateBullets();
+  drawWalls(vis);drawRedZones(vis);drawCrystals();updateParticles();
+  drawNpcs();drawBullets();
+  drawPlayer();checkCrystals();checkRedWall();
   requestAnimationFrame(gameLoop);
 }
 
