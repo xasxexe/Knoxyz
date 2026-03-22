@@ -513,25 +513,55 @@ function buildWhiteWallPath(vis){
   }
 }
 function drawRedZones(vis){
-  // draw red zones as filled floor overlays
+  // Draw red zones as glowing neon lines — same style as white walls
+  // A red edge is drawn on every side of a red tile that borders a non-red floor tile
   ctx.save();
+  ctx.beginPath();
   for(const{cx,cy,data}of vis){
     if(!data.redSet||data.redSet.size===0) continue;
     const ox=cx*CS-camX,oy=cy*CS-camY;
     for(const key of data.redSet){
       const[tx,ty]=key.split(',').map(Number);
       const sx=ox+tx*TILE,sy=oy+ty*TILE;
-      ctx.fillStyle='rgba(255,30,30,0.18)';
-      ctx.fillRect(sx,sy,TILE,TILE);
-      // bright border on all 4 sides
-      ctx.strokeStyle='#ff3333';
-      ctx.lineWidth=1.5;
-      ctx.shadowColor='rgba(255,50,50,0.8)';
-      ctx.shadowBlur=6;
-      ctx.strokeRect(sx+0.75,sy+0.75,TILE-1.5,TILE-1.5);
-      ctx.shadowBlur=0;
+      // draw edge if neighbour is floor but NOT red
+      const isRed=(ntx,nty)=>{
+        if(ntx<0||ntx>=CHUNK||nty<0||nty>=CHUNK) return false;
+        return data.redSet.has(ntx+','+nty);
+      };
+      const isFloor=(ntx,nty)=>{
+        if(ntx<0||ntx>=CHUNK||nty<0||nty>=CHUNK) return false;
+        return data.tiles[nty*CHUNK+ntx]===1;
+      };
+      // top
+      if(!isRed(tx,ty-1)){ ctx.moveTo(sx,sy); ctx.lineTo(sx+TILE,sy); }
+      // bottom
+      if(!isRed(tx,ty+1)){ ctx.moveTo(sx,sy+TILE); ctx.lineTo(sx+TILE,sy+TILE); }
+      // left
+      if(!isRed(tx-1,ty)){ ctx.moveTo(sx,sy); ctx.lineTo(sx,sy+TILE); }
+      // right
+      if(!isRed(tx+1,ty)){ ctx.moveTo(sx+TILE,sy); ctx.lineTo(sx+TILE,sy+TILE); }
     }
   }
+  // wide glow pass
+  ctx.lineWidth=10; ctx.strokeStyle='rgba(255,30,30,0.1)';
+  ctx.shadowColor='#ff2020'; ctx.shadowBlur=20; ctx.stroke();
+  // crisp line pass
+  ctx.beginPath();
+  for(const{cx,cy,data}of vis){
+    if(!data.redSet||data.redSet.size===0) continue;
+    const ox=cx*CS-camX,oy=cy*CS-camY;
+    for(const key of data.redSet){
+      const[tx,ty]=key.split(',').map(Number);
+      const sx=ox+tx*TILE,sy=oy+ty*TILE;
+      const isRed=(ntx,nty)=>{if(ntx<0||ntx>=CHUNK||nty<0||nty>=CHUNK)return false;return data.redSet.has(ntx+','+nty);};
+      if(!isRed(tx,ty-1)){ ctx.moveTo(sx,sy); ctx.lineTo(sx+TILE,sy); }
+      if(!isRed(tx,ty+1)){ ctx.moveTo(sx,sy+TILE); ctx.lineTo(sx+TILE,sy+TILE); }
+      if(!isRed(tx-1,ty)){ ctx.moveTo(sx,sy); ctx.lineTo(sx,sy+TILE); }
+      if(!isRed(tx+1,ty)){ ctx.moveTo(sx+TILE,sy); ctx.lineTo(sx+TILE,sy+TILE); }
+    }
+  }
+  ctx.lineWidth=2; ctx.strokeStyle='#ff3333';
+  ctx.shadowColor='rgba(255,60,60,0.9)'; ctx.shadowBlur=6; ctx.stroke();
   ctx.restore();
 }
 function drawWalls(vis){
@@ -578,22 +608,15 @@ function checkRedWall(){
 }
 
 function drainOneCrystal(){
-  // drain in order: green first, then yellow, then purple
-  const order=['g','y','p'];
-  for(const t of order){
-    const total=storedCounts[t]+counts[t];
-    if(total>0){
-      if(counts[t]>0){
-        counts[t]--;
-      } else {
-        storedCounts[t]--;
-      }
-      document.getElementById('c'+t).textContent=storedCounts[t]+counts[t];
-      spawnParticles(player.wx,player.wy,'#ff3333');
-      scheduleAutoSave();
-      return;
-    }
-  }
+  // pick a random type that has any crystals
+  const available=['g','y','p'].filter(t=>storedCounts[t]+counts[t]>0);
+  if(!available.length) return;
+  const t=available[Math.floor(Math.random()*available.length)];
+  if(counts[t]>0) counts[t]--;
+  else storedCounts[t]--;
+  document.getElementById('c'+t).textContent=storedCounts[t]+counts[t];
+  spawnParticles(player.wx,player.wy,'#ff3333');
+  scheduleAutoSave();
 }
 
 // ── Auto-save with debounce ────────────────────────────────────────────────
