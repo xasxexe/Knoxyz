@@ -200,6 +200,7 @@
     transition:transform .15s, border-color .15s;
     flex-shrink:0;
   }
+  @keyframes rainbowspin{0%{filter:hue-rotate(0deg)}100%{filter:hue-rotate(360deg)}}
   .swatch:hover{ transform:scale(1.2); }
   .swatch.active{ border-color:#fff; transform:scale(1.15); }
   .lb-name{color:#fff;}
@@ -381,6 +382,8 @@ let playerColor = localStorage.getItem('knoxyz_color') || '#ff3333';
 function buildPalette(){
   const el=document.getElementById('palette');
   el.innerHTML='';
+  const hasRainbow=(storedCounts.r+counts.r)>0;
+
   PALETTE.forEach(col=>{
     const sw=document.createElement('div');
     sw.className='swatch'+(col===playerColor?' active':'');
@@ -395,11 +398,36 @@ function buildPalette(){
     };
     el.appendChild(sw);
   });
+
+  // rainbow swatch — only if unlocked
+  if(hasRainbow){
+    const sw=document.createElement('div');
+    sw.className='swatch'+('rainbow'===playerColor?' active':'');
+    sw.style.cssText=`background:conic-gradient(#ff4444,#ffd700,#00ff88,#00e5ff,#bf5fff,#ff44cc,#ff4444);box-shadow:0 0 8px rgba(255,255,255,0.4)`;
+    sw.title='Rainbow (unlocked)';
+    sw.onclick=()=>{
+      playerColor='rainbow';
+      localStorage.setItem('knoxyz_color','rainbow');
+      document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+      sw.classList.add('active');
+      updateProfileBall();
+    };
+    el.appendChild(sw);
+  }
 }
 
 function updateProfileBall(){
   const ball=document.getElementById('profile-ball');
-  ball.style.setProperty('--pc', playerColor);
+  if(playerColor==='rainbow'){
+    ball.style.background='conic-gradient(#ff4444,#ffd700,#00ff88,#00e5ff,#bf5fff,#ff44cc,#ff4444)';
+    ball.style.boxShadow='0 0 14px rgba(255,255,255,0.5)';
+    ball.style.animation='rainbowspin 2s linear infinite';
+  } else {
+    ball.style.background=playerColor;
+    ball.style.boxShadow=`0 0 12px ${playerColor}`;
+    ball.style.animation='none';
+    ball.style.setProperty('--pc', playerColor);
+  }
 }
 
 function showProfile(){
@@ -424,18 +452,46 @@ function refreshProfileStats(){
   el('ps-total').textContent=total;
 }
 
-// Clock
-function tickClock(){
-  const el=document.getElementById('profile-clock');
-  if(!el) return;
-  const now=new Date();
-  const hh=String(now.getHours()).padStart(2,'0');
-  const mm=String(now.getMinutes()).padStart(2,'0');
-  const ss=String(now.getSeconds()).padStart(2,'0');
-  el.textContent=hh+':'+mm+':'+ss;
+// Session clock — counts time since login
+let sessionStart=null;
+let clockInterval=null;
+let storedPlaytime=0; // seconds already in DB
+
+function fmtTime(s){
+  const hh=String(Math.floor(s/3600)).padStart(2,'0');
+  const mm=String(Math.floor((s%3600)/60)).padStart(2,'0');
+  const ss=String(s%60).padStart(2,'0');
+  return hh+':'+mm+':'+ss;
 }
-setInterval(tickClock,1000);
-tickClock();
+
+function startSessionClock(baseSec){
+  storedPlaytime=baseSec||0;
+  sessionStart=Date.now();
+  if(clockInterval) clearInterval(clockInterval);
+  clockInterval=setInterval(()=>{
+    const el=document.getElementById('profile-clock');
+    if(!el) return;
+    const total=storedPlaytime+Math.floor((Date.now()-sessionStart)/1000);
+    el.textContent=fmtTime(total);
+  },1000);
+  const el=document.getElementById('profile-clock');
+  if(el) el.textContent=fmtTime(storedPlaytime);
+}
+
+async function stopAndSaveClock(){
+  if(clockInterval){ clearInterval(clockInterval); clockInterval=null; }
+  if(sessionStart && currentUser){
+    const sessionSec=Math.floor((Date.now()-sessionStart)/1000);
+    const newTotal=storedPlaytime+sessionSec;
+    try{
+      await sbFetch('users?id=eq.'+currentUser.id,{
+        method:'PATCH', prefer:'return=minimal',
+        body:{playtime_seconds:newTotal}
+      });
+    }catch(e){console.error('playtime save error',e);}
+  }
+  sessionStart=null;
+}
 
 function showLoggedIn(){
   // Load scores first so profile stats are correct before game starts
@@ -449,6 +505,8 @@ function showLoggedIn(){
         refreshProfileStats();
       }).catch(()=>{});
   }
+  // Start session clock with stored base
+  startSessionClock(currentUser.playtime_seconds||0);
   // Show profile panel and switch login panel to "ready to play" state
   showProfile();
   // Hide login/register tabs, show play button
@@ -470,8 +528,9 @@ function showLoggedIn(){
 }
 
 function doLogout(){
-  currentUser=null;
-  hideProfile();
+  stopAndSaveClock().then(()=>{
+    currentUser=null;
+    hideProfile();
   // Restore login form
   document.getElementById('tab-login').innerHTML=`
     <input class="field" id="l-user" placeholder="USERNAME" autocomplete="off" spellcheck="false">
@@ -481,6 +540,7 @@ function doLogout(){
     <button class="action-btn" style="border-color:transparent;color:rgba(255,255,255,0.2);font-size:10px;margin-top:-8px" onclick="playGuest()">PLAY AS GUEST</button>
   `;
   document.getElementById('l-pass')?.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  }); // end stopAndSaveClock
 }
 
 function toggleProfile(){
@@ -510,7 +570,7 @@ async function doLogin(){
   btn.disabled=true; btn.textContent='...';
   try{
     const hash=await hashPass(password);
-    const rows=await sbFetch(`users?username=eq.${encodeURIComponent(username)}&password_hash=eq.${hash}&select=id,username`);
+    const rows=await sbFetch(`users?username=eq.${encodeURIComponent(username)}&password_hash=eq.${hash}&select=id,username,playtime_seconds`);
     if(!rows.length){err.textContent='WRONG USERNAME OR PASSWORD';return;}
     currentUser=rows[0];
     showLoggedIn();
@@ -939,20 +999,16 @@ function drawRainbow(sx,sy,r,t){
 }
 function drawPlayer(){
   const sx=player.wx-camX,sy=player.wy-camY;
-  const hasRainbow=(storedCounts.r+counts.r)>0;
-  if(hasRainbow){
+  if(playerColor==='rainbow'){
     const t=performance.now();
     const hue=(t*0.08)%360;
-    // rotating rainbow gradient fill
     ctx.save();
     ctx.translate(sx,sy);
-    // glow
     const grd=ctx.createRadialGradient(0,0,0,0,0,player.r*2.5);
     grd.addColorStop(0,`hsla(${hue},100%,65%,0.3)`);
     grd.addColorStop(1,`hsla(${hue},100%,65%,0)`);
     ctx.beginPath();ctx.arc(0,0,player.r*2.5,0,Math.PI*2);
     ctx.fillStyle=grd;ctx.fill();
-    // body
     const fill=ctx.createLinearGradient(-player.r,-player.r,player.r,player.r);
     fill.addColorStop(0,`hsl(${hue},100%,60%)`);
     fill.addColorStop(0.33,`hsl(${(hue+120)%360},100%,60%)`);
@@ -1032,13 +1088,25 @@ function checkRedWall(){
 }
 
 function drainOneCrystal(){
-  // build pool weighted by count — more crystals of a type = more likely to lose one
+  // 15% chance to burn a rainbow crystal if player has one
+  const totalRainbow=storedCounts.r+counts.r;
+  if(totalRainbow>0 && Math.random()<0.15){
+    if(counts.r>0) counts.r--;
+    else storedCounts.r--;
+    document.getElementById('cr').textContent=storedCounts.r+counts.r;
+    // big flash particles
+    for(const col of['#ff4444','#ffd700','#00ff88','#bf5fff'])
+      spawnParticles(player.wx,player.wy,col);
+    refreshProfileStats();
+    scheduleAutoSave();
+    return;
+  }
+  // regular drain — weighted by count
   const pool=[];
   for(const t of['g','y','p']){
     const total=storedCounts[t]+counts[t];
     if(total>0){
-      // add at least 1 entry, more if you have more of that type
-      const weight=Math.ceil(Math.sqrt(total)); // sqrt so rare types still get hit sometimes
+      const weight=Math.ceil(Math.sqrt(total));
       for(let i=0;i<weight;i++) pool.push(t);
     }
   }
@@ -1170,6 +1238,20 @@ function menuStarLoop(){
 }
 
 // enter key support
+// Save playtime on tab close
+window.addEventListener('beforeunload', ()=>{
+  if(currentUser && sessionStart){
+    const sessionSec=Math.floor((Date.now()-sessionStart)/1000);
+    const newTotal=storedPlaytime+sessionSec;
+    // Use sendBeacon for reliable delivery on unload
+    const body=JSON.stringify({playtime_seconds:newTotal});
+    navigator.sendBeacon(
+      SB_URL+'/rest/v1/users?id=eq.'+currentUser.id,
+      new Blob([body],{type:'application/json'})
+    );
+  }
+});
+
 ['l-pass','r-pass2'].forEach(id=>{
   document.getElementById(id)?.addEventListener('keydown',e=>{if(e.key==='Enter'){id.startsWith('l')?doLogin():doRegister();}});
 });
