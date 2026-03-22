@@ -121,36 +121,70 @@
     display:none;
     position:fixed; top:24px; left:24px;
     z-index:25; pointer-events:all;
-    flex-direction:column; gap:12px;
-    width:200px;
+    flex-direction:column; gap:0px;
+    width:210px;
   }
   #profile-panel.visible{ display:flex; }
+
+  /* clickable header — always visible when panel is shown */
+  #profile-top{
+    display:flex; align-items:center; gap:12px;
+    cursor:pointer; padding:6px 0;
+    user-select:none;
+  }
+  #profile-top:hover #profile-nick{
+    text-shadow:0 0 16px rgba(255,255,255,0.6);
+  }
+
   #profile-nick{
     font-family:'Orbitron',monospace; font-size:13px; font-weight:700;
     letter-spacing:3px; color:#fff;
     text-shadow:0 0 12px rgba(255,255,255,0.3);
+    transition: text-shadow .2s;
   }
   #profile-sub{
     font-size:9px; letter-spacing:2px;
-    color:rgba(255,255,255,0.2); margin-top:-8px;
+    color:rgba(255,255,255,0.2); margin-top:2px;
+    display:flex; align-items:center; gap:6px;
   }
+  #profile-arrow{
+    font-size:8px; color:rgba(255,255,255,0.2);
+    transition:transform .25s;
+    display:inline-block;
+  }
+  #profile-panel.expanded #profile-arrow{ transform:rotate(180deg); }
+
   #profile-ball{
-    width:38px; height:38px; border-radius:50%;
+    width:36px; height:36px; border-radius:50%;
     background: var(--pc,#ff3333);
-    box-shadow: 0 0 14px var(--pc,#ff3333), 0 0 30px color-mix(in srgb, var(--pc,#ff3333) 40%, transparent);
-    margin-bottom:2px; flex-shrink:0;
+    box-shadow: 0 0 12px var(--pc,#ff3333);
+    flex-shrink:0; transition: box-shadow .2s;
   }
-  #profile-top{ display:flex; align-items:center; gap:14px; }
+
+  /* expandable section */
+  #profile-expand{
+    overflow:hidden;
+    max-height:0;
+    transition: max-height .3s ease, opacity .3s ease, margin .3s ease;
+    opacity:0;
+    margin-top:0;
+  }
+  #profile-panel.expanded #profile-expand{
+    max-height:200px;
+    opacity:1;
+    margin-top:12px;
+  }
   .palette-label{
     font-size:9px; letter-spacing:2px;
-    color:rgba(255,255,255,0.2); margin-bottom:6px;
+    color:rgba(255,255,255,0.2); margin-bottom:8px;
   }
   #palette{
-    display:grid; grid-template-columns:repeat(5,1fr); gap:5px;
+    display:grid; grid-template-columns:repeat(5,1fr); gap:6px;
   }
   .swatch{
-    width:24px; height:24px; border-radius:50%; cursor:pointer;
-    border:2px solid transparent; transition:transform .15s, border-color .15s;
+    width:26px; height:26px; border-radius:50%; cursor:pointer;
+    border:2px solid transparent;
+    transition:transform .15s, border-color .15s;
     flex-shrink:0;
   }
   .swatch:hover{ transform:scale(1.2); }
@@ -173,15 +207,17 @@
 
 <!-- Profile panel (shown in menu after login) -->
 <div id="profile-panel">
-  <div id="profile-top">
+  <div id="profile-top" onclick="toggleProfile()">
     <div id="profile-ball"></div>
     <div>
       <div id="profile-nick">—</div>
-      <div id="profile-sub">PLAYER</div>
+      <div id="profile-sub">PLAYER &nbsp;<span id="profile-arrow">▲</span></div>
     </div>
   </div>
-  <div class="palette-label">BALL COLOR</div>
-  <div id="palette"></div>
+  <div id="profile-expand">
+    <div class="palette-label">BALL COLOR</div>
+    <div id="palette"></div>
+  </div>
 </div>
 
 <!-- HUD (visible during game) -->
@@ -352,6 +388,10 @@ function doLogout(){
   document.getElementById('l-pass')?.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 }
 
+function toggleProfile(){
+  document.getElementById('profile-panel').classList.toggle('expanded');
+}
+
 function hideProfile(){
   document.getElementById('profile-panel').classList.remove('visible');
 }
@@ -514,8 +554,21 @@ const player={wx:0,wy:0,r:14,speed:3.6};
 let camX=0,camY=0,gameRunning=false;
 let storedCounts={g:0,y:0,p:0}; // counts already in DB for this user
 const keys={};
-window.addEventListener('keydown',e=>{if(gameRunning){keys[e.key.toLowerCase()]=true;e.preventDefault();}});
-window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+// Map cyrillic and other layouts to latin equivalents
+const KEY_MAP={
+  'ц':'w','ф':'a','ы':'s','в':'d',
+  'и':'w','ш':'a','щ':'s','з':'d', // alt layouts
+};
+function mapKey(k){ return KEY_MAP[k.toLowerCase()]||k.toLowerCase(); }
+window.addEventListener('keydown',e=>{
+  if(gameRunning){
+    keys[mapKey(e.key)]=true;
+    // prevent scroll on arrows/space
+    if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase()))
+      e.preventDefault();
+  }
+});
+window.addEventListener('keyup',e=>{ keys[mapKey(e.key)]=false; });
 
 // ── RNG ────────────────────────────────────────────────────────────────────
 let WORLD_SEED=Math.floor(Math.random()*0xFFFFFF);
