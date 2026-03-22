@@ -1516,10 +1516,9 @@ const npcs = [];
 const bullets = [];
 let playerHP = 3;
 let lastNpcSpawn = 0;
-const NPC_SPAWN_INTERVAL = 18000; // spawn every 18s
-const NPC_SPEED = 1.1;
+const NPC_SPAWN_INTERVAL = 18000;
+const NPC_SPEED = 1.9;
 const BULLET_SPEED = 4.5;
-const BULLET_RATE = 333; // ms between shots (3/sec)
 
 function spawnNpc(){
   // spawn on a floor tile near player but not too close
@@ -1531,17 +1530,56 @@ function spawnNpc(){
   npcs.push({ wx, wy, r:14, lastShot:0, hp:1 });
 }
 
+// ── NPC steering — wall-following when blocked ────────────────────────────
+// Each NPC has a steering state: 'direct' or 'wall_follow' with a direction bias
+function npcMove(n){
+  const sp=NPC_SPEED;
+  const dx=player.wx-n.wx, dy=player.wy-n.wy;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist<n.r+player.r+2) return; // touching player
+
+  const tx=dx/dist, ty=dy/dist; // unit vec toward player
+
+  // try direct path first
+  const nx=n.wx+tx*sp, ny=n.wy+ty*sp;
+  const canX=tileAtWorld(nx+Math.sign(tx)*(n.r-2),n.wy)&&tileAtWorld(nx+Math.sign(tx)*(n.r-2),n.wy+n.r-2)&&tileAtWorld(nx+Math.sign(tx)*(n.r-2),n.wy-n.r+2);
+  const canY=tileAtWorld(n.wx,ny+Math.sign(ty)*(n.r-2))&&tileAtWorld(n.wx+n.r-2,ny+Math.sign(ty)*(n.r-2))&&tileAtWorld(n.wx-n.r+2,ny+Math.sign(ty)*(n.r-2));
+
+  if(canX) n.wx=nx;
+  if(canY) n.wy+=ty*sp;
+
+  // if blocked on both axes — wall follow: try perpendicular directions
+  if(!canX && !canY){
+    if(!n.wallDir) n.wallDir=Math.random()<0.5?1:-1;
+    // try perpendicular to main direction
+    const px=-ty*n.wallDir, py=tx*n.wallDir;
+    const wx2=n.wx+px*sp, wy2=n.wy+py*sp;
+    if(tileAtWorld(wx2,n.wy)) n.wx=wx2;
+    else if(tileAtWorld(n.wx,wy2)) n.wy=wy2;
+    else {
+      // fully stuck — flip wall direction
+      n.wallDir*=-1;
+    }
+    n.wallStuck=(n.wallStuck||0)+1;
+    if(n.wallStuck>40){ n.wallDir=null; n.wallStuck=0; } // reset after 40 frames
+  } else {
+    n.wallDir=null; n.wallStuck=0;
+  }
+}
+
 function updateNpcs(t){
   for(let i=npcs.length-1;i>=0;i--){
     const n=npcs[i];
-    // move toward player
+    npcMove(n);
+    // collide with player — push player back
     const dx=player.wx-n.wx, dy=player.wy-n.wy;
     const dist=Math.sqrt(dx*dx+dy*dy);
-    if(dist>20){
-      const nx=n.wx+dx/dist*NPC_SPEED;
-      const ny=n.wy+dy/dist*NPC_SPEED;
-      if(tileAtWorld(nx,n.wy)) n.wx=nx;
-      if(tileAtWorld(n.wx,ny)) n.wy=ny;
+    if(dist<n.r+player.r){
+      // push player away
+      const push=n.r+player.r-dist+1;
+      const nx2=dx/dist*push, ny2=dy/dist*push;
+      // apply to player velocity too (ice effect)
+      pvx+=nx2*0.4; pvy+=ny2*0.4;
     }
     // shoot burst of 3 bullets every second
     if(t-n.lastShot>1000){
@@ -1553,7 +1591,7 @@ function updateNpcs(t){
           wx:n.wx, wy:n.wy,
           vx:Math.cos(a)*BULLET_SPEED,
           vy:Math.sin(a)*BULLET_SPEED,
-          life:120, fromNpc:true
+          life:140, fromNpc:true
         });
       }
     }
