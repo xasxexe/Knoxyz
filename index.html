@@ -115,6 +115,46 @@
   #lb-table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.04);}
   #lb-table tr.me td{color:#ffd700;}
   .lb-rank{color:rgba(255,255,255,0.3);width:28px;}
+
+  /* ── Profile panel ── */
+  #profile-panel{
+    display:none;
+    position:fixed; top:24px; left:24px;
+    z-index:25; pointer-events:all;
+    flex-direction:column; gap:12px;
+    width:200px;
+  }
+  #profile-panel.visible{ display:flex; }
+  #profile-nick{
+    font-family:'Orbitron',monospace; font-size:13px; font-weight:700;
+    letter-spacing:3px; color:#fff;
+    text-shadow:0 0 12px rgba(255,255,255,0.3);
+  }
+  #profile-sub{
+    font-size:9px; letter-spacing:2px;
+    color:rgba(255,255,255,0.2); margin-top:-8px;
+  }
+  #profile-ball{
+    width:38px; height:38px; border-radius:50%;
+    background: var(--pc,#ff3333);
+    box-shadow: 0 0 14px var(--pc,#ff3333), 0 0 30px color-mix(in srgb, var(--pc,#ff3333) 40%, transparent);
+    margin-bottom:2px; flex-shrink:0;
+  }
+  #profile-top{ display:flex; align-items:center; gap:14px; }
+  .palette-label{
+    font-size:9px; letter-spacing:2px;
+    color:rgba(255,255,255,0.2); margin-bottom:6px;
+  }
+  #palette{
+    display:grid; grid-template-columns:repeat(5,1fr); gap:5px;
+  }
+  .swatch{
+    width:24px; height:24px; border-radius:50%; cursor:pointer;
+    border:2px solid transparent; transition:transform .15s, border-color .15s;
+    flex-shrink:0;
+  }
+  .swatch:hover{ transform:scale(1.2); }
+  .swatch.active{ border-color:#fff; transform:scale(1.15); }
   .lb-name{color:#fff;}
   .lb-g{color:#00ff88;} .lb-y{color:#ffd700;} .lb-p{color:#bf5fff;}
   .lb-total{color:#fff;font-family:'Orbitron',monospace;}
@@ -130,6 +170,19 @@
 <body>
 <canvas id="c"></canvas>
 <canvas id="stars"></canvas>
+
+<!-- Profile panel (shown in menu after login) -->
+<div id="profile-panel">
+  <div id="profile-top">
+    <div id="profile-ball"></div>
+    <div>
+      <div id="profile-nick">—</div>
+      <div id="profile-sub">PLAYER</div>
+    </div>
+  </div>
+  <div class="palette-label">BALL COLOR</div>
+  <div id="palette"></div>
+</div>
 
 <!-- HUD (visible during game) -->
 <div id="ui" style="display:none">
@@ -224,6 +277,50 @@ async function hashPass(pass){
 // ── Auth state ─────────────────────────────────────────────────────────────
 let currentUser = null; // {id, username}
 
+// ── Player color ───────────────────────────────────────────────────────────
+const PALETTE = [
+  '#ff3333','#ff6b35','#ffd700','#a8ff3e','#00ff88',
+  '#00e5ff','#4488ff','#aa44ff','#ff44cc','#ffffff',
+  '#ff8888','#ffbb55','#aaff66','#55ffdd','#8888ff',
+];
+let playerColor = localStorage.getItem('knoxyz_color') || '#ff3333';
+
+function buildPalette(){
+  const el=document.getElementById('palette');
+  el.innerHTML='';
+  PALETTE.forEach(col=>{
+    const sw=document.createElement('div');
+    sw.className='swatch'+(col===playerColor?' active':'');
+    sw.style.cssText=`background:${col};box-shadow:0 0 6px ${col}`;
+    sw.title=col;
+    sw.onclick=()=>{
+      playerColor=col;
+      localStorage.setItem('knoxyz_color',col);
+      document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+      sw.classList.add('active');
+      updateProfileBall();
+    };
+    el.appendChild(sw);
+  });
+}
+
+function updateProfileBall(){
+  const ball=document.getElementById('profile-ball');
+  ball.style.setProperty('--pc', playerColor);
+}
+
+function showProfile(){
+  if(!currentUser) return;
+  document.getElementById('profile-nick').textContent=currentUser.username.toUpperCase();
+  document.getElementById('profile-panel').classList.add('visible');
+  buildPalette();
+  updateProfileBall();
+}
+
+function hideProfile(){
+  document.getElementById('profile-panel').classList.remove('visible');
+}
+
 // ── Tab switching ──────────────────────────────────────────────────────────
 function switchTab(name){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -246,6 +343,7 @@ async function doLogin(){
     const rows=await sbFetch(`users?username=eq.${encodeURIComponent(username)}&password_hash=eq.${hash}&select=id,username`);
     if(!rows.length){err.textContent='WRONG USERNAME OR PASSWORD';return;}
     currentUser=rows[0];
+    showProfile();
     startGame();
   }catch(e){err.textContent='ERROR: '+e.message;}
   finally{btn.disabled=false;btn.textContent='ENTER';}
@@ -272,6 +370,7 @@ async function doRegister(){
       body:{username,password_hash:hash}
     });
     currentUser=rows[0];
+    showProfile();
     startGame();
   }catch(e){
     if(e.message.includes('unique')||e.message.includes('duplicate'))
@@ -283,6 +382,7 @@ async function doRegister(){
 
 function playGuest(){
   currentUser=null;
+  hideProfile();
   startGame();
 }
 
@@ -573,7 +673,7 @@ function drawWalls(vis){
   ctx.restore();
 }
 function drawCrystals(){for(const c of crystals){if(c.collected)continue;const sx=c.wx-camX,sy=c.wy-camY;if(sx<-40||sx>W+40||sy<-40||sy>H+40)continue;const col=CCOLORS[c.type],r=c.r;ctx.save();ctx.translate(sx,sy);ctx.beginPath();ctx.moveTo(0,-r);ctx.lineTo(r*.6,0);ctx.lineTo(0,r);ctx.lineTo(-r*.6,0);ctx.closePath();ctx.fillStyle=col;ctx.shadowColor=col;ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;ctx.restore();}}
-function drawPlayer(){const sx=player.wx-camX,sy=player.wy-camY;ctx.beginPath();ctx.arc(sx,sy,player.r,0,Math.PI*2);ctx.fillStyle='#ff3333';ctx.shadowColor='#ff3333';ctx.shadowBlur=6;ctx.fill();ctx.shadowBlur=0;}
+function drawPlayer(){const sx=player.wx-camX,sy=player.wy-camY;ctx.beginPath();ctx.arc(sx,sy,player.r,0,Math.PI*2);ctx.fillStyle=playerColor;ctx.shadowColor=playerColor;ctx.shadowBlur=6;ctx.fill();ctx.shadowBlur=0;}
 function spawnParticles(wx,wy,col){for(let i=0;i<10;i++){const a=Math.random()*Math.PI*2,sp=.8+Math.random()*3;particles.push({x:wx,y:wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color:col,life:1,r:2+Math.random()*2});}}
 function updateParticles(){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=.9;p.vy*=.9;p.life-=.04;if(p.life<=0){particles.splice(i,1);continue;}ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.globalAlpha=p.life*.8;ctx.fill();ctx.globalAlpha=1;}}
 function checkCrystals(){for(const c of crystals){if(c.collected)continue;const dx=c.wx-player.wx,dy=c.wy-player.wy;if(dx*dx+dy*dy<(player.r+c.r+10)**2){c.collected=true;counts[c.type]++;spawnParticles(c.wx,c.wy,CCOLORS[c.type]);document.getElementById('c'+c.type).textContent=counts[c.type];scheduleAutoSave();}}}
@@ -696,6 +796,7 @@ function startGame(){
   camX=player.wx-W/2; camY=player.wy-H/2;
 
   document.getElementById('menu').style.display='none';
+  hideProfile();
   document.getElementById('ui').style.display='block';
   document.getElementById('hud-user').textContent=currentUser?currentUser.username:'GUEST';
   document.getElementById('save-btn').style.display='none'; // hidden, auto-save active
