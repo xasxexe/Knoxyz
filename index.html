@@ -1501,17 +1501,18 @@ function hitPlayer(){
 }
 
 function drainOneRandom(){
+  // НПС снимает только g/y/p — сначала из counts (сессия), потом storedCounts
+  // Радужные НПС не трогает
   const pool=[];
-  for(const t of['g','y','p','r']){
-    const total=storedCounts[t]+counts[t];
-    if(total>0) pool.push(t);
+  for(const t of['g','y','p']){
+    if(counts[t]>0) pool.push(t);           // есть сессионные — берём их
+    else if(storedCounts[t]>0) pool.push(t); // нет сессионных — берём сохранённые
   }
   if(!pool.length) return;
   const t=pool[Math.floor(Math.random()*pool.length)];
   if(counts[t]>0) counts[t]--;
   else storedCounts[t]--;
-  const id=t==='r'?'cr':'c'+t;
-  document.getElementById(id).textContent=storedCounts[t]+counts[t];
+  document.getElementById('c'+t).textContent=storedCounts[t]+counts[t];
   scheduleAutoSave();
 }
 
@@ -1524,17 +1525,24 @@ function updateHPBar(){
 
 function triggerDeath(){
   gameRunning=false;
-  // lose 75% of session crystals
+  // теряем 75% только сессионных кристаллов (counts), storedCounts не трогаем
   const lostG=Math.floor(counts.g*.75);
   const lostY=Math.floor(counts.y*.75);
   const lostP=Math.floor(counts.p*.75);
   const lostR=Math.floor(counts.r*.75);
-  counts.g-=lostG; counts.y-=lostY; counts.p-=lostP; counts.r-=lostR;
+  counts.g=Math.max(0,counts.g-lostG);
+  counts.y=Math.max(0,counts.y-lostY);
+  counts.p=Math.max(0,counts.p-lostP);
+  counts.r=Math.max(0,counts.r-lostR);
+  // обновляем HUD
+  document.getElementById('cg').textContent=storedCounts.g+counts.g;
+  document.getElementById('cy').textContent=storedCounts.y+counts.y;
+  document.getElementById('cp').textContent=storedCounts.p+counts.p;
+  document.getElementById('cr').textContent=storedCounts.r+counts.r;
   scheduleAutoSave();
-  // show death screen
   const ds=document.getElementById('death-screen');
   document.getElementById('death-loss').textContent=
-    `LOST: ${lostG}G · ${lostY}Y · ${lostP}P · ${lostR}✦ (75% OF SESSION)`;
+    `LOST THIS SESSION: ${lostG}G · ${lostY}Y · ${lostP}P · ${lostR}✦`;
   ds.classList.add('visible');
 }
 
