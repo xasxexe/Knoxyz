@@ -487,13 +487,22 @@ function startSessionClock(baseSec){
 async function savePlaytime(){
   if(!sessionStart||!currentUser) return;
   const sessionSec=Math.floor((Date.now()-sessionStart)/1000);
+  if(sessionSec<1) return;
   const newTotal=storedPlaytime+sessionSec;
   try{
-    await sbFetch('users?id=eq.'+currentUser.id,{
-      method:'PATCH', prefer:'return=minimal',
-      body:{playtime_seconds:newTotal}
-    });
-    // update base so next save doesn't double-count
+    // upsert into playtime table
+    const existing=await sbFetch('playtime?user_id=eq.'+currentUser.id+'&select=user_id');
+    if(existing.length){
+      await sbFetch('playtime?user_id=eq.'+currentUser.id,{
+        method:'PATCH', prefer:'return=minimal',
+        body:{seconds:newTotal}
+      });
+    } else {
+      await sbFetch('playtime',{
+        method:'POST', prefer:'return=minimal',
+        body:{user_id:currentUser.id, seconds:newTotal}
+      });
+    }
     storedPlaytime=newTotal;
     sessionStart=Date.now();
   }catch(e){console.error('playtime save error',e);}
@@ -520,8 +529,16 @@ function showLoggedIn(){
         updateProfileBall();
       }).catch(()=>{});
   }
-  // Start session clock with stored base
-  startSessionClock(currentUser.playtime_seconds||0);
+  // Load playtime from DB then start clock
+  if(currentUser){
+    sbFetch('playtime?user_id=eq.'+currentUser.id+'&select=seconds')
+      .then(rows=>{
+        const base=rows.length?rows[0].seconds||0:0;
+        startSessionClock(base);
+      }).catch(()=>startSessionClock(0));
+  } else {
+    startSessionClock(0);
+  }
   // Show profile panel and switch login panel to "ready to play" state
   showProfile();
   // Hide login/register tabs, show play button
@@ -585,7 +602,7 @@ async function doLogin(){
   btn.disabled=true; btn.textContent='...';
   try{
     const hash=await hashPass(password);
-    const rows=await sbFetch(`users?username=eq.${encodeURIComponent(username)}&password_hash=eq.${hash}&select=id,username,playtime_seconds`);
+    const rows=await sbFetch(`users?username=eq.${encodeURIComponent(username)}&password_hash=eq.${hash}&select=id,username`);
     if(!rows.length){err.textContent='WRONG USERNAME OR PASSWORD';return;}
     currentUser=rows[0];
     showLoggedIn();
