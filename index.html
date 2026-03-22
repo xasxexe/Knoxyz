@@ -39,6 +39,15 @@
   .g{background:#00ff88;box-shadow:0 0 8px #00ff88;} .gt{color:#00ff88;text-shadow:0 0 6px #00ff88;}
   .y{background:#ffd700;box-shadow:0 0 8px #ffd700;} .yt{color:#ffd700;text-shadow:0 0 6px #ffd700;}
   .p{background:#bf5fff;box-shadow:0 0 8px #bf5fff;} .pt{color:#bf5fff;text-shadow:0 0 6px #bf5fff;}
+  #back-btn{
+    position:absolute; bottom:24px; left:24px;
+    background:transparent; border:none;
+    color:rgba(255,255,255,0.12); font-family:'Share Tech Mono',monospace;
+    font-size:10px; letter-spacing:2px; cursor:pointer;
+    padding:6px 10px; transition:color .2s;
+    pointer-events:all;
+  }
+  #back-btn:hover{ color:rgba(255,255,255,0.45); }
   #save-btn{
     position:absolute;bottom:24px;right:24px;pointer-events:all;
     background:transparent;border:1px solid rgba(255,255,255,0.15);
@@ -326,6 +335,7 @@
   </div>
   <button id="save-btn">SAVE SCORE</button>
   <div id="save-msg">SAVED</div>
+  <button id="back-btn" onclick="exitToMenu()">&#x2190; MENU</button>
 </div>
 
 <!-- MENU -->
@@ -1177,6 +1187,11 @@ function drainOneCrystal(){
     if(counts.r>0) counts.r--;
     else storedCounts.r--;
     document.getElementById('cr').textContent=storedCounts.r+counts.r;
+    // if rainbow ran out — strip rainbow skin
+    if((storedCounts.r+counts.r)===0 && playerColor==='rainbow'){
+      playerColor='#ff3333';
+      localStorage.setItem('knoxyz_color','#ff3333');
+    }
     // big flash particles
     for(const col of['#ff4444','#ffd700','#00ff88','#bf5fff'])
       spawnParticles(player.wx,player.wy,col);
@@ -1184,7 +1199,7 @@ function drainOneCrystal(){
     scheduleAutoSave();
     return;
   }
-  // regular drain — weighted by count
+  // regular drain — only g/y/p, never rainbow here
   const pool=[];
   for(const t of['g','y','p']){
     const total=storedCounts[t]+counts[t];
@@ -1249,6 +1264,16 @@ async function autoSave(){
 // save-btn hidden — scores auto-save on crystal pickup
 
 // ── Start game ─────────────────────────────────────────────────────────────
+function exitToMenu(){
+  gameRunning=false;
+  document.getElementById('ui').style.display='none';
+  document.getElementById('menu').style.display='flex';
+  // restart star animation
+  drawStars();
+  // show profile if logged in
+  if(currentUser) showProfile();
+}
+
 function startGame(){
   // reset world
   chunkMap.clear(); crystals.length=0; particles.length=0;
