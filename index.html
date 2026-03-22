@@ -1578,15 +1578,32 @@ function updateNpcs(t){
     const ddx=n.wx-player.wx, ddy=n.wy-player.wy;
     if(ddx*ddx+ddy*ddy>1200*1200){ npcs.splice(i,1); continue; }
     npcMove(n);
-    // collide with player — push player back
+
+    // NPC ↔ player collision — strong knockback
     const dx=player.wx-n.wx, dy=player.wy-n.wy;
     const dist=Math.sqrt(dx*dx+dy*dy);
-    if(dist<n.r+player.r){
-      // push player away
-      const push=n.r+player.r-dist+1;
-      const nx2=dx/dist*push, ny2=dy/dist*push;
-      // apply to player velocity too (ice effect)
-      pvx+=nx2*0.4; pvy+=ny2*0.4;
+    if(dist<n.r+player.r && dist>0){
+      const overlap=n.r+player.r-dist;
+      const nx2=dx/dist, ny2=dy/dist;
+      // push player strongly (3 blocks worth)
+      pvx+=nx2*(overlap+TILE*3)*0.08;
+      pvy+=ny2*(overlap+TILE*3)*0.08;
+      // also push NPC back slightly so they don't stack
+      n.wx-=nx2*overlap*0.3;
+      n.wy-=ny2*overlap*0.3;
+    }
+
+    // NPC ↔ NPC separation — stop them stacking
+    for(let j=i-1;j>=0;j--){
+      const m=npcs[j];
+      const ex=n.wx-m.wx, ey=n.wy-m.wy;
+      const ed=Math.sqrt(ex*ex+ey*ey);
+      if(ed<n.r+m.r && ed>0){
+        const sep=(n.r+m.r-ed)*0.5;
+        const ux=ex/ed, uy=ey/ed;
+        n.wx+=ux*sep; n.wy+=uy*sep;
+        m.wx-=ux*sep; m.wy-=uy*sep;
+      }
     }
     // shoot burst of 3 bullets every second
     if(t-n.lastShot>1000){
@@ -1742,7 +1759,7 @@ function drawBullets(){
 // ice velocity
 let pvx=0,pvy=0;
 const ICE_ACCEL=0.38;   // how fast you speed up
-const ICE_FRICTION=0.96; // how fast you slow down (lower = more ice)
+const ICE_FRICTION=0.80; // how fast you slow down (lower = more ice)
 
 function gameLoop(){
   if(!gameRunning)return;
