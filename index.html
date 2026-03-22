@@ -1506,7 +1506,7 @@ function startGame(){
   pvx=0;pvy=0;
   wasInHeal=false;
   playerHP=3; updateHPBar();
-  npcs.length=0; bullets.length=0; lastNpcSpawn=performance.now();
+  npcs.length=0; bullets.length=0; lastNpcSpawn=performance.now()-5000;
   gameRunning=true;
   requestAnimationFrame(gameLoop);
 }
@@ -1516,7 +1516,6 @@ const npcs = [];
 const bullets = [];
 let playerHP = 3;
 let lastNpcSpawn = 0;
-const NPC_SPAWN_INTERVAL = 18000;
 const NPC_SPEED = 1.9;
 const BULLET_SPEED = 4.5;
 
@@ -1532,36 +1531,37 @@ function spawnNpc(){
 
 // ── NPC steering — wall-following when blocked ────────────────────────────
 // Each NPC has a steering state: 'direct' or 'wall_follow' with a direction bias
+function npcCanMove(wx,wy,r){
+  const m=r-1;
+  return tileAtWorld(wx+m,wy-m)&&tileAtWorld(wx+m,wy+m)
+      && tileAtWorld(wx-m,wy-m)&&tileAtWorld(wx-m,wy+m);
+}
+
 function npcMove(n){
   const sp=NPC_SPEED;
   const dx=player.wx-n.wx, dy=player.wy-n.wy;
   const dist=Math.sqrt(dx*dx+dy*dy);
-  if(dist<n.r+player.r+2) return; // touching player
+  if(dist<n.r+player.r+2) return;
 
-  const tx=dx/dist, ty=dy/dist; // unit vec toward player
-
-  // try direct path first
+  const tx=dx/dist, ty=dy/dist;
   const nx=n.wx+tx*sp, ny=n.wy+ty*sp;
-  const canX=tileAtWorld(nx+Math.sign(tx)*(n.r-2),n.wy)&&tileAtWorld(nx+Math.sign(tx)*(n.r-2),n.wy+n.r-2)&&tileAtWorld(nx+Math.sign(tx)*(n.r-2),n.wy-n.r+2);
-  const canY=tileAtWorld(n.wx,ny+Math.sign(ty)*(n.r-2))&&tileAtWorld(n.wx+n.r-2,ny+Math.sign(ty)*(n.r-2))&&tileAtWorld(n.wx-n.r+2,ny+Math.sign(ty)*(n.r-2));
+
+  const canX=npcCanMove(nx,n.wy,n.r);
+  const canY=npcCanMove(n.wx,ny,n.r);
 
   if(canX) n.wx=nx;
-  if(canY) n.wy+=ty*sp;
+  if(canY) n.wy=ny;
 
-  // if blocked on both axes — wall follow: try perpendicular directions
+  // wall following when blocked
   if(!canX && !canY){
     if(!n.wallDir) n.wallDir=Math.random()<0.5?1:-1;
-    // try perpendicular to main direction
     const px=-ty*n.wallDir, py=tx*n.wallDir;
     const wx2=n.wx+px*sp, wy2=n.wy+py*sp;
-    if(tileAtWorld(wx2,n.wy)) n.wx=wx2;
-    else if(tileAtWorld(n.wx,wy2)) n.wy=wy2;
-    else {
-      // fully stuck — flip wall direction
-      n.wallDir*=-1;
-    }
+    if(npcCanMove(wx2,n.wy,n.r))      n.wx=wx2;
+    else if(npcCanMove(n.wx,wy2,n.r)) n.wy=wy2;
+    else n.wallDir*=-1;
     n.wallStuck=(n.wallStuck||0)+1;
-    if(n.wallStuck>40){ n.wallDir=null; n.wallStuck=0; } // reset after 40 frames
+    if(n.wallStuck>50){ n.wallDir=null; n.wallStuck=0; }
   } else {
     n.wallDir=null; n.wallStuck=0;
   }
@@ -1761,7 +1761,9 @@ function gameLoop(){
   const vis=getVisible();
   const t=performance.now();
   // spawn NPC periodically
-  if(t-lastNpcSpawn>NPC_SPAWN_INTERVAL){ lastNpcSpawn=t; spawnNpc(); }
+  // random spawn: every frame has a small chance, creating bursts and gaps
+  // avg ~1 spawn per 12s but can cluster or have long pauses
+  if(t-lastNpcSpawn>3000 && Math.random()<0.003){ lastNpcSpawn=t; spawnNpc(); }
   updateNpcs(t); updateBullets();
   drawWalls(vis);drawRedZones(vis);drawHealZones(vis);drawCrystals();updateParticles();
   drawNpcs();drawBullets();
