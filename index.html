@@ -1607,9 +1607,12 @@ function updateHPBar(){
   }
 }
 
-function triggerDeath(){
+async function triggerDeath(){
   gameRunning=false;
-  // теряем 75% только сессионных кристаллов (counts), storedCounts не трогаем
+  // cancel pending debounced save
+  clearTimeout(autoSaveTimer);
+
+  // вычисляем потери — 75% сессионных counts
   const lostG=Math.floor(counts.g*.75);
   const lostY=Math.floor(counts.y*.75);
   const lostP=Math.floor(counts.p*.75);
@@ -1618,12 +1621,17 @@ function triggerDeath(){
   counts.y=Math.max(0,counts.y-lostY);
   counts.p=Math.max(0,counts.p-lostP);
   counts.r=Math.max(0,counts.r-lostR);
+
   // обновляем HUD
   document.getElementById('cg').textContent=storedCounts.g+counts.g;
   document.getElementById('cy').textContent=storedCounts.y+counts.y;
   document.getElementById('cp').textContent=storedCounts.p+counts.p;
   document.getElementById('cr').textContent=storedCounts.r+counts.r;
-  scheduleAutoSave();
+
+  // сохраняем сразу без дебаунса
+  await autoSave();
+
+  // показываем экран смерти
   const ds=document.getElementById('death-screen');
   document.getElementById('death-loss').textContent=
     `LOST THIS SESSION: ${lostG}G · ${lostY}Y · ${lostP}P · ${lostR}✦`;
@@ -1688,7 +1696,7 @@ function drawBullets(){
 
 // ice velocity
 let pvx=0,pvy=0;
-const ICE_ACCEL=0.28;   // how fast you speed up
+const ICE_ACCEL=0.38;   // how fast you speed up
 const ICE_FRICTION=0.96; // how fast you slow down (lower = more ice)
 
 function gameLoop(){
