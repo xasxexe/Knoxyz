@@ -583,23 +583,30 @@ let redDmgAccum=0; // accumulated drain in ms
 let lastRedTime=null;
 
 function checkRedWall(){
+  // check player center + 8 points around perimeter
   const r=player.r-1;
-  const corners=[
-    [player.wx+r,player.wy],[player.wx-r,player.wy],
-    [player.wx,player.wy+r],[player.wx,player.wy-r],
-    [player.wx+r,player.wy+r],[player.wx-r,player.wy-r],
-    [player.wx+r,player.wy-r],[player.wx-r,player.wy+r]
+  const pts=[
+    [player.wx,      player.wy      ],
+    [player.wx+r,    player.wy      ],[player.wx-r,    player.wy      ],
+    [player.wx,      player.wy+r    ],[player.wx,      player.wy-r    ],
+    [player.wx+r,    player.wy+r    ],[player.wx-r,    player.wy-r    ],
+    [player.wx+r,    player.wy-r    ],[player.wx-r,    player.wy+r    ],
   ];
-  const touching=corners.some(([wx,wy])=>redAtWorld(wx,wy));
+  const touching=pts.some(([wx,wy])=>redAtWorld(wx,wy));
   const now=performance.now();
   if(touching){
-    if(lastRedTime===null) lastRedTime=now;
-    redDmgAccum+=now-lastRedTime;
-    lastRedTime=now;
-    // drain 3 per second = 1 per 333ms
-    while(redDmgAccum>=333){
-      redDmgAccum-=333;
+    if(lastRedTime===null){
+      // first frame of contact — instant 1 crystal hit
+      lastRedTime=now;
+      redDmgAccum=0;
       drainOneCrystal();
+    } else {
+      redDmgAccum+=now-lastRedTime;
+      lastRedTime=now;
+      while(redDmgAccum>=333){
+        redDmgAccum-=333;
+        drainOneCrystal();
+      }
     }
   } else {
     lastRedTime=null;
@@ -608,10 +615,18 @@ function checkRedWall(){
 }
 
 function drainOneCrystal(){
-  // pick a random type that has any crystals
-  const available=['g','y','p'].filter(t=>storedCounts[t]+counts[t]>0);
-  if(!available.length) return;
-  const t=available[Math.floor(Math.random()*available.length)];
+  // build pool weighted by count — more crystals of a type = more likely to lose one
+  const pool=[];
+  for(const t of['g','y','p']){
+    const total=storedCounts[t]+counts[t];
+    if(total>0){
+      // add at least 1 entry, more if you have more of that type
+      const weight=Math.ceil(Math.sqrt(total)); // sqrt so rare types still get hit sometimes
+      for(let i=0;i<weight;i++) pool.push(t);
+    }
+  }
+  if(!pool.length) return;
+  const t=pool[Math.floor(Math.random()*pool.length)];
   if(counts[t]>0) counts[t]--;
   else storedCounts[t]--;
   document.getElementById('c'+t).textContent=storedCounts[t]+counts[t];
