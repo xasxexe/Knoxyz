@@ -41,13 +41,17 @@
   .p{background:#bf5fff;box-shadow:0 0 8px #bf5fff;} .pt{color:#bf5fff;text-shadow:0 0 6px #bf5fff;}
   #back-btn{
     position:absolute; bottom:24px; left:24px;
-    background:transparent; border:none;
-    color:rgba(255,255,255,0.12); font-family:'Share Tech Mono',monospace;
-    font-size:10px; letter-spacing:2px; cursor:pointer;
-    padding:6px 10px; transition:color .2s;
+    background:transparent;
+    border:1px solid rgba(255,255,255,0.18);
+    color:rgba(255,255,255,0.35); font-family:'Orbitron',monospace;
+    font-size:10px; letter-spacing:3px; cursor:pointer;
+    padding:8px 16px; transition:all .2s;
     pointer-events:all;
   }
-  #back-btn:hover{ color:rgba(255,255,255,0.45); }
+  #back-btn:hover{
+    color:#fff; border-color:rgba(255,255,255,0.6);
+    background:rgba(255,255,255,0.04);
+  }
   #save-btn{
     position:absolute;bottom:24px;right:24px;pointer-events:all;
     background:transparent;border:1px solid rgba(255,255,255,0.15);
@@ -1186,9 +1190,10 @@ function drainOneCrystal(){
   if(totalRainbow>0 && Math.random()<0.15){
     if(counts.r>0) counts.r--;
     else storedCounts.r--;
-    document.getElementById('cr').textContent=storedCounts.r+counts.r;
-    // if rainbow ran out — strip rainbow skin
-    if((storedCounts.r+counts.r)===0 && playerColor==='rainbow'){
+    const newRainbowTotal=storedCounts.r+counts.r;
+    document.getElementById('cr').textContent=newRainbowTotal;
+    // if rainbow ran out — strip rainbow skin immediately
+    if(newRainbowTotal<=0 && playerColor==='rainbow'){
       playerColor='#ff3333';
       localStorage.setItem('knoxyz_color','#ff3333');
     }
@@ -1266,6 +1271,9 @@ async function autoSave(){
 // ── Start game ─────────────────────────────────────────────────────────────
 function exitToMenu(){
   gameRunning=false;
+  // clear game canvas so it doesn't bleed through menu
+  ctx.fillStyle='#000';
+  ctx.fillRect(0,0,W,H);
   document.getElementById('ui').style.display='none';
   document.getElementById('menu').style.display='flex';
   // restart star animation
