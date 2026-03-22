@@ -122,7 +122,11 @@
     position:fixed; top:24px; left:24px;
     z-index:25; pointer-events:all;
     flex-direction:column; gap:0px;
-    width:210px;
+    width:260px;
+    background:rgba(0,0,0,0.6);
+    border:1px solid rgba(255,255,255,0.07);
+    padding:14px 16px;
+    backdrop-filter:blur(6px);
   }
   #profile-panel.visible{ display:flex; }
 
@@ -170,9 +174,9 @@
     margin-top:0;
   }
   #profile-panel.expanded #profile-expand{
-    max-height:200px;
+    max-height:400px;
     opacity:1;
-    margin-top:12px;
+    margin-top:14px;
   }
   .palette-label{
     font-size:9px; letter-spacing:2px;
@@ -193,6 +197,23 @@
   .lb-g{color:#00ff88;} .lb-y{color:#ffd700;} .lb-p{color:#bf5fff;}
   .lb-total{color:#fff;font-family:'Orbitron',monospace;}
   .lb-r{background:linear-gradient(90deg,#ff4444,#ffd700,#00ff88,#bf5fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-weight:700;}
+
+  /* profile stats */
+  #profile-stats{
+    margin-bottom:14px;
+    padding-bottom:14px;
+    border-bottom:1px solid rgba(255,255,255,0.07);
+  }
+  .pstat-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:4px 0;
+  }
+  .pstat-label{ font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.25); }
+  .pstat-val{ font-family:'Orbitron',monospace; font-size:12px; font-weight:700; }
+  .pstat-divider{
+    height:1px; background:rgba(255,255,255,0.05);
+    margin:6px 0;
+  }
 
   /* stats */
   #stats-box{width:100%;display:flex;flex-direction:column;gap:10px;}
@@ -216,6 +237,29 @@
     </div>
   </div>
   <div id="profile-expand">
+    <div id="profile-stats">
+      <div class="pstat-row">
+        <span class="pstat-label">GREEN</span>
+        <span class="pstat-val gt" id="ps-g">—</span>
+      </div>
+      <div class="pstat-row">
+        <span class="pstat-label">YELLOW</span>
+        <span class="pstat-val yt" id="ps-y">—</span>
+      </div>
+      <div class="pstat-row">
+        <span class="pstat-label">PURPLE</span>
+        <span class="pstat-val pt" id="ps-p">—</span>
+      </div>
+      <div class="pstat-row">
+        <span class="pstat-label">RAINBOW</span>
+        <span class="pstat-val" id="ps-r" style="background:linear-gradient(90deg,#ff4444,#ffd700,#00ff88,#bf5fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">—</span>
+      </div>
+      <div class="pstat-divider"></div>
+      <div class="pstat-row">
+        <span class="pstat-label">TOTAL</span>
+        <span class="pstat-val" id="ps-total" style="color:#fff">—</span>
+      </div>
+    </div>
     <div class="palette-label">BALL COLOR</div>
     <div id="palette"></div>
   </div>
@@ -354,6 +398,19 @@ function showProfile(){
   document.getElementById('profile-panel').classList.add('visible');
   buildPalette();
   updateProfileBall();
+  refreshProfileStats();
+}
+
+function refreshProfileStats(){
+  const g=storedCounts.g+counts.g, y=storedCounts.y+counts.y,
+        p=storedCounts.p+counts.p, r=storedCounts.r+counts.r;
+  const total=g+y+p+r*100;
+  const el=id=>document.getElementById(id);
+  el('ps-g').textContent=g;
+  el('ps-y').textContent=y;
+  el('ps-p').textContent=p;
+  el('ps-r').textContent=r;
+  el('ps-total').textContent=total;
 }
 
 function showLoggedIn(){
@@ -558,6 +615,15 @@ const player={wx:0,wy:0,r:14,speed:3.6};
 let camX=0,camY=0,gameRunning=false;
 let storedCounts={g:0,y:0,p:0,r:0}; // counts already in DB for this user
 const keys={};
+// Block browser zoom (Ctrl+wheel, Ctrl+±, pinch)
+window.addEventListener('wheel', e=>{ if(e.ctrlKey) e.preventDefault(); },{passive:false});
+window.addEventListener('keydown', e=>{
+  if(e.ctrlKey && (e.key==='+' || e.key==='-' || e.key==='=' || e.key==='0'))
+    e.preventDefault();
+},{passive:false});
+// Also block plain scroll wheel during game (stops accidental page zoom on some browsers)
+window.addEventListener('wheel', e=>{ if(gameRunning) e.preventDefault(); },{passive:false});
+
 // Map cyrillic and other layouts to latin equivalents
 const KEY_MAP={
   'ц':'w','ф':'a','ы':'s','в':'d',
@@ -843,6 +909,7 @@ function checkCrystals(){
         // rainbow: stored separately, worth 100 in total
         counts.r++;
         document.getElementById('cr').textContent=storedCounts.r+counts.r;
+    refreshProfileStats();
         // big burst of all colors
         for(const col of['#ff3333','#ff6600','#ffd700','#00ff88','#00e5ff','#bf5fff','#ff44cc'])
           spawnParticles(c.wx,c.wy,col);
@@ -951,6 +1018,7 @@ async function autoSave(){
     document.getElementById('cy').textContent=storedCounts.y+counts.y;
     document.getElementById('cp').textContent=storedCounts.p+counts.p;
     document.getElementById('cr').textContent=storedCounts.r+counts.r;
+    refreshProfileStats();
     msg.style.opacity=1; setTimeout(()=>msg.style.opacity=0,1200);
   }catch(e){console.error('autosave error',e);}
 }
