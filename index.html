@@ -1015,7 +1015,7 @@ function generateChunk(cx,cy){
   }
   // heal zones — rare green zones that restore 1 HP
   const healSet=new Set();
-  if(r()<0.12){ // ~12% chance per chunk — rarer than red
+  if(r()<0.08){ // ~8% chance per chunk
     const anchor=floor[Math.floor(r()*floor.length)];
     const ax=anchor%T, ay=Math.floor(anchor/T);
     const pw=1+Math.floor(r()*3), ph=1+Math.floor(r()*3);
@@ -1602,7 +1602,7 @@ function updateBullets(){
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
     b.wx+=b.vx; b.wy+=b.vy; b.life--;
-    if(b.life<=0||!tileAtWorld(b.wx,b.wy)){bullets.splice(i,1);continue;}
+    if(b.life<=0||!tileAtWorld(b.wx,b.wy)||healAtWorld(b.wx,b.wy)){bullets.splice(i,1);continue;}
     // hit player
     const dx=b.wx-player.wx, dy=b.wy-player.wy;
     if(dx*dx+dy*dy<(player.r+5)**2){
@@ -1620,7 +1620,7 @@ function hitPlayer(){
   fl.classList.add('flash');
   setTimeout(()=>fl.classList.remove('flash'),120);
   // drain 5 random crystals
-  for(let i=0;i<5;i++) drainOneRandom();
+  drainOneRandom(); // 1 crystal per hit
   if(playerHP<=0) triggerDeath();
 }
 
