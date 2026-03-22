@@ -124,6 +124,44 @@
   }
   @keyframes rainbowshift{0%{background-position:0%}100%{background-position:200%}}
   .lb-rank{color:rgba(255,255,255,0.3);width:28px;}
+  .lb-rank-1{
+    background:linear-gradient(90deg,#ff4444,#ffd700,#00ff88,#00e5ff,#bf5fff,#ff44cc);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    animation:rainbowshift 2s linear infinite;background-size:200%;
+    font-family:'Orbitron',monospace;font-weight:900;font-size:13px;
+  }
+  .lb-rank-2{
+    background:linear-gradient(90deg,#ffd700,#fff8a0,#ffd700,#b8860b,#ffd700);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    animation:goldshift 2s linear infinite;background-size:300%;
+    font-family:'Orbitron',monospace;font-weight:900;font-size:13px;
+  }
+  .lb-rank-3{
+    background:linear-gradient(90deg,#aaa,#fff,#ccc,#888,#ddd);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    animation:silvershift 2s linear infinite;background-size:300%;
+    font-family:'Orbitron',monospace;font-weight:900;font-size:13px;
+  }
+  @keyframes goldshift{0%{background-position:0%}100%{background-position:300%}}
+  @keyframes silvershift{0%{background-position:0%}100%{background-position:300%}}
+  .name-rank-1{
+    background:linear-gradient(90deg,#ff4444,#ffd700,#00ff88,#00e5ff,#bf5fff,#ff44cc);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    animation:rainbowshift 2s linear infinite;background-size:200%;
+    font-weight:700;
+  }
+  .name-rank-2{
+    background:linear-gradient(90deg,#ffd700,#fff8a0,#ffd700,#b8860b);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    animation:goldshift 2s linear infinite;background-size:300%;
+    font-weight:700;
+  }
+  .name-rank-3{
+    background:linear-gradient(90deg,#aaa,#fff,#ccc,#888,#ddd);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    animation:silvershift 2s linear infinite;background-size:300%;
+    font-weight:700;
+  }
 
   /* ── Profile panel ── */
   #profile-panel{
@@ -670,15 +708,25 @@ async function loadLeaderboard(mode){
       body.innerHTML=rows.map((r,i)=>{
         const isMe=currentUser&&r.username===currentUser.username;
         const hasRainbow=(r.crystals_rainbow||0)>0;
-        const nameStyle=hasRainbow?'lb-name lb-rainbow-name':(isMe?'lb-name lb-me-name':'lb-name');
+        // rank badge class
+        const rankClass=i===0?'lb-rank lb-rank-1':i===1?'lb-rank lb-rank-2':i===2?'lb-rank lb-rank-3':'lb-rank';
+        const rankLabel=i===0?'✦1':i===1?'✦2':i===2?'✦3':String(i+1);
+        // name class: top3 overrides rainbow/me
+        const nameClass=i===0?'lb-name name-rank-1':i===1?'lb-name name-rank-2':i===2?'lb-name name-rank-3':
+          hasRainbow?'lb-name lb-rainbow-name':isMe?'lb-name lb-me-name':'lb-name';
+        // rainbow crystal cell — animated if >0
+        const rainbowVal=r.crystals_rainbow||0;
+        const rainbowCell=rainbowVal>0
+          ?`<span class="lb-r" style="animation:rainbowshift 2s linear infinite;background-size:200%">${rainbowVal}</span>`
+          :`<span style="color:rgba(255,255,255,0.2)">—</span>`;
         return `<tr class="${isMe?'me':''}">
-          <td class="lb-rank">${i+1}</td>
-          <td class="${nameStyle}">${r.username}</td>
+          <td class="${rankClass}">${rankLabel}</td>
+          <td class="${nameClass}">${r.username}</td>
           <td class="lb-g">${r.crystals_green}</td>
           <td class="lb-y">${r.crystals_yellow}</td>
           <td class="lb-p">${r.crystals_purple}</td>
-          <td class="lb-r">${r.crystals_rainbow||0}</td>
-          <td class="lb-total">${r.total+(r.crystals_rainbow||0)*100}</td>
+          <td>${rainbowCell}</td>
+          <td class="lb-total">${r.total+rainbowVal*100}</td>
         </tr>`;}).join('');
     } else {
       const colorClass=mode==='green'?'lb-g':mode==='yellow'?'lb-y':mode==='purple'?'lb-p':'lb-r';
@@ -688,10 +736,13 @@ async function loadLeaderboard(mode){
       body.innerHTML=rows.map((r,i)=>{
         const isMe=currentUser&&r.username===currentUser.username;
         const hasRainbow=(r.crystals_rainbow||0)>0;
-        const nameStyle=hasRainbow?'lb-name lb-rainbow-name':(isMe?'lb-name lb-me-name':'lb-name');
+        const rankClass=i===0?'lb-rank lb-rank-1':i===1?'lb-rank lb-rank-2':i===2?'lb-rank lb-rank-3':'lb-rank';
+        const rankLabel=i===0?'✦1':i===1?'✦2':i===2?'✦3':String(i+1);
+        const nameClass=i===0?'lb-name name-rank-1':i===1?'lb-name name-rank-2':i===2?'lb-name name-rank-3':
+          hasRainbow?'lb-name lb-rainbow-name':isMe?'lb-name lb-me-name':'lb-name';
         return `<tr class="${isMe?'me':''}">
-          <td class="lb-rank">${i+1}</td>
-          <td class="${nameStyle}">${r.username}</td>
+          <td class="${rankClass}">${rankLabel}</td>
+          <td class="${nameClass}">${r.username}</td>
           <td class="${colorClass}">${val(r)}</td>
         </tr>`;}).join('');
     }
