@@ -113,7 +113,7 @@
   #lb-table{width:100%;border-collapse:collapse;font-size:12px;letter-spacing:1px;}
   #lb-table th{color:rgba(255,255,255,0.3);font-weight:400;padding:4px 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.08);}
   #lb-table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.04);}
-  #lb-table tr.me td{color:#ffd700;}
+  #lb-table tr.me .lb-name{color:#ffd700; text-shadow:0 0 8px rgba(255,215,0,0.5);}
   .lb-rank{color:rgba(255,255,255,0.3);width:28px;}
 
   /* ── Profile panel ── */
@@ -192,6 +192,7 @@
   .lb-name{color:#fff;}
   .lb-g{color:#00ff88;} .lb-y{color:#ffd700;} .lb-p{color:#bf5fff;}
   .lb-total{color:#fff;font-family:'Orbitron',monospace;}
+  .lb-r{background:linear-gradient(90deg,#ff4444,#ffd700,#00ff88,#bf5fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-weight:700;}
 
   /* stats */
   #stats-box{width:100%;display:flex;flex-direction:column;gap:10px;}
@@ -228,6 +229,7 @@
     <div class="crow"><span class="ccount gt" id="cg">0</span><div class="cicon g"></div></div>
     <div class="crow"><span class="ccount yt" id="cy">0</span><div class="cicon y"></div></div>
     <div class="crow"><span class="ccount pt" id="cp">0</span><div class="cicon p"></div></div>
+    <div class="crow"><span class="ccount" id="cr" style="background:linear-gradient(90deg,#ff4444,#ffd700,#00ff88,#00e5ff,#bf5fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 4px rgba(255,255,255,0.4))">0</span><div class="cicon" style="background:conic-gradient(#ff4444,#ffd700,#00ff88,#00e5ff,#bf5fff,#ff4444);box-shadow:0 0 8px rgba(255,255,255,0.5)"></div></div>
   </div>
   <button id="save-btn">SAVE SCORE</button>
   <div id="save-msg">SAVED</div>
@@ -269,6 +271,7 @@
       <button class="tab-btn"        id="lb-g-btn"     onclick="loadLeaderboard('green')">GREEN</button>
       <button class="tab-btn"        id="lb-y-btn"     onclick="loadLeaderboard('yellow')">YELLOW</button>
       <button class="tab-btn"        id="lb-p-btn"     onclick="loadLeaderboard('purple')">PURPLE</button>
+      <button class="tab-btn"        id="lb-r-btn"     onclick="loadLeaderboard('rainbow')" style="background:linear-gradient(90deg,rgba(255,68,68,0.15),rgba(191,95,255,0.15))">✦</button>
     </div>
     <div id="lb-err" class="err"></div>
     <table id="lb-table">
@@ -464,22 +467,22 @@ let lbMode='total';
 async function loadLeaderboard(mode){
   mode=mode||lbMode; lbMode=mode;
   // update sub-tab buttons
-  ['all','g','y','p'].forEach(k=>{
-    const m={all:'total',g:'green',y:'yellow',p:'purple'}[k];
+  ['all','g','y','p','r'].forEach(k=>{
+    const m={all:'total',g:'green',y:'yellow',p:'purple',r:'rainbow'}[k];
     document.getElementById('lb-'+k+'-btn')?.classList.toggle('active',m===mode);
   });
   const err=document.getElementById('lb-err');
   const body=document.getElementById('lb-body');
   err.textContent=''; body.innerHTML='<tr><td colspan="6" style="color:rgba(255,255,255,0.2);padding:12px 8px">LOADING...</td></tr>';
   try{
-    const col=mode==='green'?'crystals_green':mode==='yellow'?'crystals_yellow':mode==='purple'?'crystals_purple':'total';
-    const rows=await sbFetch(`scores?select=username,crystals_green,crystals_yellow,crystals_purple,total&order=${col}.desc&limit=20`);
+    const col=mode==='green'?'crystals_green':mode==='yellow'?'crystals_yellow':mode==='purple'?'crystals_purple':mode==='rainbow'?'crystals_rainbow':'total';
+    const rows=await sbFetch(`scores?select=username,crystals_green,crystals_yellow,crystals_purple,crystals_rainbow,total&order=${col}.desc&limit=20`);
     if(!rows.length){body.innerHTML='<tr><td colspan="3" style="color:rgba(255,255,255,0.2);padding:12px 8px">NO SCORES YET</td></tr>';return;}
 
     // Build header and rows based on mode
     const thead = document.querySelector('#lb-table thead tr');
     if(mode==='total'){
-      thead.innerHTML='<th>#</th><th>PLAYER</th><th class="lb-g">G</th><th class="lb-y">Y</th><th class="lb-p">P</th><th>TOTAL</th>';
+      thead.innerHTML='<th>#</th><th>PLAYER</th><th class="lb-g">G</th><th class="lb-y">Y</th><th class="lb-p">P</th><th class="lb-r">✦</th><th>TOTAL</th>';
       body.innerHTML=rows.map((r,i)=>`
         <tr class="${currentUser&&r.username===currentUser.username?'me':''}">
           <td class="lb-rank">${i+1}</td>
@@ -487,12 +490,13 @@ async function loadLeaderboard(mode){
           <td class="lb-g">${r.crystals_green}</td>
           <td class="lb-y">${r.crystals_yellow}</td>
           <td class="lb-p">${r.crystals_purple}</td>
-          <td class="lb-total">${r.total}</td>
+          <td class="lb-r">${r.crystals_rainbow||0}</td>
+          <td class="lb-total">${r.total+(r.crystals_rainbow||0)*100}</td>
         </tr>`).join('');
     } else {
-      const colorClass=mode==='green'?'lb-g':mode==='yellow'?'lb-y':'lb-p';
-      const label=mode==='green'?'GREEN':mode==='yellow'?'YELLOW':'PURPLE';
-      const val=r=>mode==='green'?r.crystals_green:mode==='yellow'?r.crystals_yellow:r.crystals_purple;
+      const colorClass=mode==='green'?'lb-g':mode==='yellow'?'lb-y':mode==='purple'?'lb-p':'lb-r';
+      const label=mode==='green'?'GREEN':mode==='yellow'?'YELLOW':mode==='purple'?'PURPLE':'✦ RAINBOW';
+      const val=r=>mode==='green'?r.crystals_green:mode==='yellow'?r.crystals_yellow:mode==='purple'?r.crystals_purple:(r.crystals_rainbow||0);
       thead.innerHTML=`<th>#</th><th>PLAYER</th><th class="${colorClass}">${label}</th>`;
       body.innerHTML=rows.map((r,i)=>`
         <tr class="${currentUser&&r.username===currentUser.username?'me':''}">
@@ -549,10 +553,10 @@ const TILE=40,CHUNK=24,CS=TILE*CHUNK,CRYSTAL_RARITY=200;
 const CCOLORS={g:'#00ff88',y:'#ffd700',p:'#bf5fff'};
 
 const chunkMap=new Map(),crystals=[],particles=[];
-const counts={g:0,y:0,p:0};
+const counts={g:0,y:0,p:0,r:0};
 const player={wx:0,wy:0,r:14,speed:3.6};
 let camX=0,camY=0,gameRunning=false;
-let storedCounts={g:0,y:0,p:0}; // counts already in DB for this user
+let storedCounts={g:0,y:0,p:0,r:0}; // counts already in DB for this user
 const keys={};
 // Map cyrillic and other layouts to latin equivalents
 const KEY_MAP={
@@ -648,8 +652,8 @@ function generateChunk(cx,cy){
   for(let i=floor.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[floor[i],floor[j]]=[floor[j],floor[i]];}
   const nc=Math.max(0,Math.floor(floor.length/CRYSTAL_RARITY));
   const cc=[];
-  const pickType=rv=>{if(rv<0.60)return'g';if(rv<0.90)return'y';return'p';};
-  for(let i=0;i<nc;i++){const idx=floor[i];cc.push({wx:cx*CS+(idx%T)*TILE+TILE/2,wy:cy*CS+Math.floor(idx/T)*TILE+TILE/2,type:pickType(r()),r:6,collected:false});}
+  const pickType=rv=>{if(rv<0.001)return'r';if(rv<0.601)return'g';if(rv<0.901)return'y';return'p';}; // r=rainbow
+  for(let i=0;i<nc;i++){const idx=floor[i];const ct=pickType(r());cc.push({wx:cx*CS+(idx%T)*TILE+TILE/2,wy:cy*CS+Math.floor(idx/T)*TILE+TILE/2,type:ct,r:ct==='r'?14:6,collected:false});}
   // red zones — floor tiles that drain crystals on contact
   // stored as a Set of "tx,ty" strings; tiles stay =1 (walkable)
   const redSet=new Set();
@@ -758,11 +762,99 @@ function drawWalls(vis){
   ctx.lineWidth=2;ctx.strokeStyle='#ffffff';ctx.shadowColor='rgba(200,230,255,0.7)';ctx.shadowBlur=5;ctx.stroke();
   ctx.restore();
 }
-function drawCrystals(){for(const c of crystals){if(c.collected)continue;const sx=c.wx-camX,sy=c.wy-camY;if(sx<-40||sx>W+40||sy<-40||sy>H+40)continue;const col=CCOLORS[c.type],r=c.r;ctx.save();ctx.translate(sx,sy);ctx.beginPath();ctx.moveTo(0,-r);ctx.lineTo(r*.6,0);ctx.lineTo(0,r);ctx.lineTo(-r*.6,0);ctx.closePath();ctx.fillStyle=col;ctx.shadowColor=col;ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;ctx.restore();}}
+function drawCrystals(){
+  const t=performance.now();
+  for(const c of crystals){
+    if(c.collected)continue;
+    const sx=c.wx-camX,sy=c.wy-camY;
+    if(sx<-60||sx>W+60||sy<-60||sy>H+60)continue;
+    if(c.type==='r'){
+      drawRainbow(sx,sy,c.r,t);
+    } else {
+      const col=CCOLORS[c.type],r=c.r;
+      ctx.save();ctx.translate(sx,sy);
+      ctx.beginPath();ctx.moveTo(0,-r);ctx.lineTo(r*.6,0);ctx.lineTo(0,r);ctx.lineTo(-r*.6,0);
+      ctx.closePath();ctx.fillStyle=col;ctx.shadowColor=col;ctx.shadowBlur=8;
+      ctx.fill();ctx.shadowBlur=0;ctx.restore();
+    }
+  }
+}
+
+function drawRainbow(sx,sy,r,t){
+  ctx.save();
+  ctx.translate(sx,sy);
+  const angle=t*0.002;
+
+  // rays
+  const nRays=8;
+  for(let i=0;i<nRays;i++){
+    const a=angle+(i/nRays)*Math.PI*2;
+    const hue=(i/nRays*360+t*0.1)%360;
+    const len=r*1.8+Math.sin(t*0.003+i)*r*0.5;
+    ctx.save();
+    ctx.rotate(a);
+    const grad=ctx.createLinearGradient(0,0,0,-len);
+    grad.addColorStop(0,`hsla(${hue},100%,65%,0.8)`);
+    grad.addColorStop(1,`hsla(${hue},100%,65%,0)`);
+    ctx.strokeStyle=grad;
+    ctx.lineWidth=2;
+    ctx.shadowColor=`hsl(${hue},100%,65%)`;
+    ctx.shadowBlur=6;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-len);ctx.stroke();
+    ctx.restore();
+  }
+
+  // outer glow halo
+  const hue0=(t*0.08)%360;
+  const grd=ctx.createRadialGradient(0,0,0,0,0,r*2.5);
+  grd.addColorStop(0,`hsla(${hue0},100%,65%,0.35)`);
+  grd.addColorStop(1,`hsla(${hue0},100%,65%,0)`);
+  ctx.beginPath();ctx.arc(0,0,r*2.5,0,Math.PI*2);
+  ctx.fillStyle=grd;ctx.fill();
+
+  // rotating rainbow fill on diamond shape
+  const hue1=(t*0.1)%360;
+  ctx.rotate(angle*0.5);
+  ctx.beginPath();
+  ctx.moveTo(0,-r);ctx.lineTo(r*0.7,0);ctx.lineTo(0,r);ctx.lineTo(-r*0.7,0);
+  ctx.closePath();
+  const fill=ctx.createLinearGradient(-r,-r,r,r);
+  fill.addColorStop(0,`hsl(${hue1},100%,65%)`);
+  fill.addColorStop(0.33,`hsl(${(hue1+120)%360},100%,65%)`);
+  fill.addColorStop(0.66,`hsl(${(hue1+240)%360},100%,65%)`);
+  fill.addColorStop(1,`hsl(${hue1},100%,65%)`);
+  ctx.fillStyle=fill;
+  ctx.shadowColor=`hsl(${hue1},100%,70%)`;
+  ctx.shadowBlur=20;
+  ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.restore();
+}
 function drawPlayer(){const sx=player.wx-camX,sy=player.wy-camY;ctx.beginPath();ctx.arc(sx,sy,player.r,0,Math.PI*2);ctx.fillStyle=playerColor;ctx.shadowColor=playerColor;ctx.shadowBlur=6;ctx.fill();ctx.shadowBlur=0;}
 function spawnParticles(wx,wy,col){for(let i=0;i<10;i++){const a=Math.random()*Math.PI*2,sp=.8+Math.random()*3;particles.push({x:wx,y:wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color:col,life:1,r:2+Math.random()*2});}}
 function updateParticles(){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=.9;p.vy*=.9;p.life-=.04;if(p.life<=0){particles.splice(i,1);continue;}ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.globalAlpha=p.life*.8;ctx.fill();ctx.globalAlpha=1;}}
-function checkCrystals(){for(const c of crystals){if(c.collected)continue;const dx=c.wx-player.wx,dy=c.wy-player.wy;if(dx*dx+dy*dy<(player.r+c.r+10)**2){c.collected=true;counts[c.type]++;spawnParticles(c.wx,c.wy,CCOLORS[c.type]);document.getElementById('c'+c.type).textContent=counts[c.type];scheduleAutoSave();}}}
+function checkCrystals(){
+  for(const c of crystals){
+    if(c.collected)continue;
+    const dx=c.wx-player.wx,dy=c.wy-player.wy;
+    if(dx*dx+dy*dy<(player.r+c.r+10)**2){
+      c.collected=true;
+      if(c.type==='r'){
+        // rainbow: stored separately, worth 100 in total
+        counts.r++;
+        document.getElementById('cr').textContent=storedCounts.r+counts.r;
+        // big burst of all colors
+        for(const col of['#ff3333','#ff6600','#ffd700','#00ff88','#00e5ff','#bf5fff','#ff44cc'])
+          spawnParticles(c.wx,c.wy,col);
+      } else {
+        counts[c.type]++;
+        spawnParticles(c.wx,c.wy,CCOLORS[c.type]);
+        document.getElementById('c'+c.type).textContent=storedCounts[c.type]+counts[c.type];
+      }
+      scheduleAutoSave();
+    }
+  }
+}
 
 // ── Red wall damage ───────────────────────────────────────────────────────
 let redDmgAccum=0; // accumulated drain in ms
@@ -841,13 +933,14 @@ async function autoSave(){
           crystals_green: storedCounts.g + counts.g,
           crystals_yellow: storedCounts.y + counts.y,
           crystals_purple: storedCounts.p + counts.p,
+          crystals_rainbow: storedCounts.r + counts.r,
           saved_at: new Date().toISOString()
         }
       });
     } else {
       const rows=await sbFetch('scores',{method:'POST',prefer:'return=representation',
         body:{user_id:currentUser.id,username:currentUser.username,
-          crystals_green:counts.g,crystals_yellow:counts.y,crystals_purple:counts.p}
+          crystals_green:counts.g,crystals_yellow:counts.y,crystals_purple:counts.p,crystals_rainbow:counts.r}
       });
       if(rows.length) scoreRowId=rows[0].id;
     }
@@ -857,6 +950,7 @@ async function autoSave(){
     document.getElementById('cg').textContent=storedCounts.g+counts.g;
     document.getElementById('cy').textContent=storedCounts.y+counts.y;
     document.getElementById('cp').textContent=storedCounts.p+counts.p;
+    document.getElementById('cr').textContent=storedCounts.r+counts.r;
     msg.style.opacity=1; setTimeout(()=>msg.style.opacity=0,1200);
   }catch(e){console.error('autosave error',e);}
 }
@@ -872,6 +966,7 @@ function startGame(){
   document.getElementById('cg').textContent='0';
   document.getElementById('cy').textContent='0';
   document.getElementById('cp').textContent='0';
+  document.getElementById('cr').textContent='0';
 
   for(let cy=-1;cy<=1;cy++)for(let cx=-1;cx<=1;cx++)getChunk(cx,cy);
   const sc=chunkMap.get('0,0');
@@ -888,19 +983,20 @@ function startGame(){
   document.getElementById('save-btn').style.display='none'; // hidden, auto-save active
 
   scoreRowId=null;
-  storedCounts={g:0,y:0,p:0};
+  storedCounts={g:0,y:0,p:0,r:0};
 
   if(currentUser){
     // load existing score row so we can accumulate on top of it
-    sbFetch('scores?user_id=eq.'+currentUser.id+'&select=id,crystals_green,crystals_yellow,crystals_purple')
+    sbFetch('scores?user_id=eq.'+currentUser.id+'&select=id,crystals_green,crystals_yellow,crystals_purple,crystals_rainbow')
       .then(rows=>{
         if(rows.length){
           scoreRowId=rows[0].id;
-          storedCounts={g:rows[0].crystals_green||0,y:rows[0].crystals_yellow||0,p:rows[0].crystals_purple||0};
+          storedCounts={g:rows[0].crystals_green||0,y:rows[0].crystals_yellow||0,p:rows[0].crystals_purple||0,r:rows[0].crystals_rainbow||0};
           // show existing totals in HUD immediately
           document.getElementById('cg').textContent=storedCounts.g;
           document.getElementById('cy').textContent=storedCounts.y;
           document.getElementById('cp').textContent=storedCounts.p;
+          document.getElementById('cr').textContent=storedCounts.r;
         }
       }).catch(()=>{});
   }
