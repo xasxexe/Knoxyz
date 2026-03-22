@@ -317,6 +317,41 @@ function showProfile(){
   updateProfileBall();
 }
 
+function showLoggedIn(){
+  // Show profile panel and switch login panel to "ready to play" state
+  showProfile();
+  // Hide login/register tabs, show play button
+  document.getElementById('tab-login').innerHTML=`
+    <div style="text-align:center;color:rgba(255,255,255,0.35);font-size:11px;letter-spacing:3px;margin-bottom:8px">
+      LOGGED IN AS
+    </div>
+    <div style="font-family:'Orbitron',monospace;font-size:18px;letter-spacing:4px;color:#fff;text-align:center;margin-bottom:20px">
+      ${currentUser.username.toUpperCase()}
+    </div>
+    <button class="action-btn" onclick="startGame()" style="border-color:rgba(255,255,255,0.4);">PLAY</button>
+    <button class="action-btn" onclick="doLogout()" style="border-color:transparent;color:rgba(255,255,255,0.2);font-size:10px;margin-top:-4px">LOG OUT</button>
+  `;
+  // Switch to login tab to show the play button
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#menu-tabs .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-login').classList.add('active');
+  document.querySelector('#menu-tabs .tab-btn').classList.add('active');
+}
+
+function doLogout(){
+  currentUser=null;
+  hideProfile();
+  // Restore login form
+  document.getElementById('tab-login').innerHTML=`
+    <input class="field" id="l-user" placeholder="USERNAME" autocomplete="off" spellcheck="false">
+    <input class="field" id="l-pass" type="password" placeholder="PASSWORD">
+    <div class="err" id="l-err"></div>
+    <button class="action-btn" id="l-btn" onclick="doLogin()">ENTER</button>
+    <button class="action-btn" style="border-color:transparent;color:rgba(255,255,255,0.2);font-size:10px;margin-top:-8px" onclick="playGuest()">PLAY AS GUEST</button>
+  `;
+  document.getElementById('l-pass')?.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+}
+
 function hideProfile(){
   document.getElementById('profile-panel').classList.remove('visible');
 }
@@ -343,8 +378,7 @@ async function doLogin(){
     const rows=await sbFetch(`users?username=eq.${encodeURIComponent(username)}&password_hash=eq.${hash}&select=id,username`);
     if(!rows.length){err.textContent='WRONG USERNAME OR PASSWORD';return;}
     currentUser=rows[0];
-    showProfile();
-    startGame();
+    showLoggedIn();
   }catch(e){err.textContent='ERROR: '+e.message;}
   finally{btn.disabled=false;btn.textContent='ENTER';}
 }
@@ -370,8 +404,7 @@ async function doRegister(){
       body:{username,password_hash:hash}
     });
     currentUser=rows[0];
-    showProfile();
-    startGame();
+    showLoggedIn();
   }catch(e){
     if(e.message.includes('unique')||e.message.includes('duplicate'))
       err.textContent='USERNAME ALREADY TAKEN';
