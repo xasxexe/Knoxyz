@@ -131,7 +131,7 @@
     position:fixed; top:24px; left:24px;
     z-index:25; pointer-events:all;
     flex-direction:column; gap:0px;
-    width:260px;
+    width:300px;
     background:rgba(0,0,0,0.6);
     border:1px solid rgba(255,255,255,0.07);
     padding:14px 16px;
@@ -192,7 +192,7 @@
     color:rgba(255,255,255,0.2); margin-bottom:8px;
   }
   #palette{
-    display:grid; grid-template-columns:repeat(5,1fr); gap:6px;
+    display:grid; grid-template-columns:repeat(6,1fr); gap:6px;
   }
   .swatch{
     width:26px; height:26px; border-radius:50%; cursor:pointer;
@@ -464,32 +464,45 @@ function fmtTime(s){
   return hh+':'+mm+':'+ss;
 }
 
+let playtimeSaveInterval=null;
+
 function startSessionClock(baseSec){
   storedPlaytime=baseSec||0;
   sessionStart=Date.now();
   if(clockInterval) clearInterval(clockInterval);
+  if(playtimeSaveInterval) clearInterval(playtimeSaveInterval);
+  // tick display every second
   clockInterval=setInterval(()=>{
     const el=document.getElementById('profile-clock');
     if(!el) return;
     const total=storedPlaytime+Math.floor((Date.now()-sessionStart)/1000);
     el.textContent=fmtTime(total);
   },1000);
+  // persist to DB every 60 seconds
+  playtimeSaveInterval=setInterval(()=>savePlaytime(), 60000);
   const el=document.getElementById('profile-clock');
   if(el) el.textContent=fmtTime(storedPlaytime);
 }
 
+async function savePlaytime(){
+  if(!sessionStart||!currentUser) return;
+  const sessionSec=Math.floor((Date.now()-sessionStart)/1000);
+  const newTotal=storedPlaytime+sessionSec;
+  try{
+    await sbFetch('users?id=eq.'+currentUser.id,{
+      method:'PATCH', prefer:'return=minimal',
+      body:{playtime_seconds:newTotal}
+    });
+    // update base so next save doesn't double-count
+    storedPlaytime=newTotal;
+    sessionStart=Date.now();
+  }catch(e){console.error('playtime save error',e);}
+}
+
 async function stopAndSaveClock(){
+  await savePlaytime();
   if(clockInterval){ clearInterval(clockInterval); clockInterval=null; }
-  if(sessionStart && currentUser){
-    const sessionSec=Math.floor((Date.now()-sessionStart)/1000);
-    const newTotal=storedPlaytime+sessionSec;
-    try{
-      await sbFetch('users?id=eq.'+currentUser.id,{
-        method:'PATCH', prefer:'return=minimal',
-        body:{playtime_seconds:newTotal}
-      });
-    }catch(e){console.error('playtime save error',e);}
-  }
+  if(playtimeSaveInterval){ clearInterval(playtimeSaveInterval); playtimeSaveInterval=null; }
   sessionStart=null;
 }
 
@@ -503,6 +516,8 @@ function showLoggedIn(){
           storedCounts={g:rows[0].crystals_green||0,y:rows[0].crystals_yellow||0,p:rows[0].crystals_purple||0,r:rows[0].crystals_rainbow||0};
         }
         refreshProfileStats();
+        buildPalette(); // rebuild now that storedCounts has rainbow count
+        updateProfileBall();
       }).catch(()=>{});
   }
   // Start session clock with stored base
@@ -1238,19 +1253,8 @@ function menuStarLoop(){
 }
 
 // enter key support
-// Save playtime on tab close
-window.addEventListener('beforeunload', ()=>{
-  if(currentUser && sessionStart){
-    const sessionSec=Math.floor((Date.now()-sessionStart)/1000);
-    const newTotal=storedPlaytime+sessionSec;
-    // Use sendBeacon for reliable delivery on unload
-    const body=JSON.stringify({playtime_seconds:newTotal});
-    navigator.sendBeacon(
-      SB_URL+'/rest/v1/users?id=eq.'+currentUser.id,
-      new Blob([body],{type:'application/json'})
-    );
-  }
-});
+// Save playtime on tab close (best-effort)
+window.addEventListener('beforeunload', ()=>{ savePlaytime(); });
 
 ['l-pass','r-pass2'].forEach(id=>{
   document.getElementById(id)?.addEventListener('keydown',e=>{if(e.key==='Enter'){id.startsWith('l')?doLogin():doRegister();}});
