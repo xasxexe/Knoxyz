@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>KNOXYZ</title>
 <meta name="description" content="Knoxyz game — explore infinite dark corridors and collect rare crystals.">
 <meta property="og:title" content="KNOXYZ">
@@ -909,7 +909,7 @@ resize(); window.addEventListener('resize',resize);
 const isMobile = /Android|iPhone|iPad|iPod|Touch/i.test(navigator.userAgent)
                || navigator.maxTouchPoints > 1;
 
-const TILE=isMobile?28:40,CHUNK=24,CS=TILE*CHUNK,CRYSTAL_RARITY=200;
+const TILE=isMobile?22:40,CHUNK=24,CS=TILE*CHUNK,CRYSTAL_RARITY=200;
 const CCOLORS={g:'#00ff88',y:'#ffd700',p:'#bf5fff'};
 
 const chunkMap=new Map(),crystals=[],particles=[];
@@ -1351,7 +1351,7 @@ function flashCounter(type, sessionVal, totalVal){
 }
 
 function spawnParticles(wx,wy,col){for(let i=0;i<10;i++){const a=Math.random()*Math.PI*2,sp=.8+Math.random()*3;particles.push({x:wx,y:wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color:col,life:1,r:2+Math.random()*2});}}
-function updateParticles(){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=.9;p.vy*=.9;p.life-=.04;if(p.life<=0){particles.splice(i,1);continue;}ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.globalAlpha=p.life*.8;ctx.fill();ctx.globalAlpha=1;}}
+function updateParticles(dt=1){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.9,dt);p.vy*=Math.pow(.9,dt);p.life-=.04*dt;if(p.life<=0){particles.splice(i,1);continue;}ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.globalAlpha=p.life*.8;ctx.fill();ctx.globalAlpha=1;}}
 function checkCrystals(){
   for(const c of crystals){
     if(c.collected)continue;
@@ -1587,6 +1587,7 @@ function startGame(){
   playerHP=3; updateHPBar();
   npcs.length=0; bullets.length=0; lastNpcSpawn=performance.now()-5000;
   initJoystick();
+  lastFrameTime=0;
   gameRunning=true;
   requestAnimationFrame(gameLoop);
 }
@@ -1622,7 +1623,7 @@ function npcCanMove(wx,wy,r){
 }
 
 function npcMove(n){
-  const sp=NPC_SPEED;
+  const sp=NPC_SPEED*dt;
   const dx=player.wx-n.wx, dy=player.wy-n.wy;
   const dist=Math.sqrt(dx*dx+dy*dy);
   if(dist<n.r+player.r+2) return;
@@ -1651,7 +1652,7 @@ function npcMove(n){
   }
 }
 
-function updateNpcs(t){
+function updateNpcs(t,dt=1){
   for(let i=npcs.length-1;i>=0;i--){
     const n=npcs[i];
     // despawn if too far from player
@@ -1702,10 +1703,10 @@ function updateNpcs(t){
   }
 }
 
-function updateBullets(){
+function updateBullets(dt=1){
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
-    b.wx+=b.vx; b.wy+=b.vy; b.life--;
+    b.wx+=b.vx*dt; b.wy+=b.vy*dt; b.life-=dt;
     if(b.life<=0||!tileAtWorld(b.wx,b.wy)||healAtWorld(b.wx,b.wy)){bullets.splice(i,1);continue;}
     // hit player
     const dx=b.wx-player.wx, dy=b.wy-player.wy;
@@ -1841,8 +1842,14 @@ let pvx=0,pvy=0;
 const ICE_ACCEL=0.38;   // how fast you speed up
 const ICE_FRICTION=0.80; // how fast you slow down (lower = more ice)
 
-function gameLoop(){
+let lastFrameTime=0;
+
+function gameLoop(now){
   if(!gameRunning)return;
+  // delta time normalized to 60fps — fixes speed differences across refresh rates
+  const dt=lastFrameTime?Math.min((now-lastFrameTime)/16.667,3):1;
+  lastFrameTime=now;
+
   const sp=player.speed;let dx=0,dy=0;
   if(keys['w']||keys['arrowup'])   dy-=1;
   if(keys['s']||keys['arrowdown']) dy+=1;
@@ -1850,27 +1857,27 @@ function gameLoop(){
   if(keys['d']||keys['arrowright'])dx+=1;
   if(joystickActive){ dx+=joystickX; dy+=joystickY; }
   if(dx&&dy){dx*=.707;dy*=.707;}
-  // accelerate toward input
-  pvx+=dx*ICE_ACCEL;
-  pvy+=dy*ICE_ACCEL;
-  // clamp to max speed
+
+  // ice physics scaled by dt
+  pvx+=dx*ICE_ACCEL*dt;
+  pvy+=dy*ICE_ACCEL*dt;
   const len=Math.sqrt(pvx*pvx+pvy*pvy);
   if(len>sp){pvx=pvx/len*sp;pvy=pvy/len*sp;}
-  // friction when no input
-  if(!dx&&!dy){pvx*=ICE_FRICTION;pvy*=ICE_FRICTION;}
+  if(!dx&&!dy){
+    const friction=Math.pow(ICE_FRICTION,dt);
+    pvx*=friction; pvy*=friction;
+  }
   if(Math.abs(pvx)<0.05)pvx=0;
   if(Math.abs(pvy)<0.05)pvy=0;
-  if(pvx||pvy)tryMove(pvx,pvy);
+  if(pvx||pvy)tryMove(pvx*dt,pvy*dt);
   updateCamera();
+
   ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
   const vis=getVisible();
-  const t=performance.now();
-  // spawn NPC periodically
-  // random spawn: every frame has a small chance, creating bursts and gaps
-  // avg ~1 spawn per 12s but can cluster or have long pauses
-  if(t-lastNpcSpawn>3000 && Math.random()<0.003){ lastNpcSpawn=t; spawnNpc(); }
-  updateNpcs(t); updateBullets();
-  drawWalls(vis);drawRedZones(vis);drawHealZones(vis);drawCrystals();updateParticles();
+  const t=now;
+  if(t-lastNpcSpawn>3000 && Math.random()<0.003*dt){ lastNpcSpawn=t; spawnNpc(); }
+  updateNpcs(t,dt); updateBullets(dt);
+  drawWalls(vis);drawRedZones(vis);drawHealZones(vis);drawCrystals();updateParticles(dt);
   drawNpcs();drawBullets();
   drawPlayer();checkCrystals();checkRedWall();checkHealZone();
   requestAnimationFrame(gameLoop);
