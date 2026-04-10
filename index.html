@@ -42,6 +42,30 @@
   .g{background:#00ff88;box-shadow:0 0 8px #00ff88;} .gt{color:#00ff88;text-shadow:0 0 6px #00ff88;}
   .y{background:#ffd700;box-shadow:0 0 8px #ffd700;} .yt{color:#ffd700;text-shadow:0 0 6px #ffd700;}
   .p{background:#bf5fff;box-shadow:0 0 8px #bf5fff;} .pt{color:#bf5fff;text-shadow:0 0 6px #bf5fff;}
+  /* ── Mobile joystick ── */
+  #joystick-wrap{
+    display:none;
+    position:fixed; bottom:36px; left:36px;
+    z-index:30; pointer-events:all;
+    touch-action:none;
+  }
+  #joystick-base{
+    width:110px; height:110px; border-radius:50%;
+    background:rgba(255,255,255,0.06);
+    border:2px solid rgba(255,255,255,0.15);
+    position:relative;
+  }
+  #joystick-knob{
+    width:44px; height:44px; border-radius:50%;
+    background:rgba(255,255,255,0.25);
+    border:2px solid rgba(255,255,255,0.5);
+    position:absolute;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    transition:box-shadow .1s;
+    box-shadow:0 0 10px rgba(255,255,255,0.2);
+  }
+
   #back-btn{
     position:absolute; bottom:24px; left:24px;
     background:transparent;
@@ -391,6 +415,11 @@
   <button id="save-btn">SAVE SCORE</button>
   <div id="save-msg">SAVED</div>
   <button id="back-btn" onclick="exitToMenu()">&#x2190; MENU</button>
+  <div id="joystick-wrap">
+    <div id="joystick-base">
+      <div id="joystick-knob"></div>
+    </div>
+  </div>
   <div id="hp-bar">
     <svg class="hp-heart" id="hp1" viewBox="0 0 20 18" fill="#ff3333" xmlns="http://www.w3.org/2000/svg"><path d="M10 16S1 10 1 5a4 4 0 0 1 9-1 4 4 0 0 1 9 1c0 5-9 11-9 11z"/></svg>
     <svg class="hp-heart" id="hp2" viewBox="0 0 20 18" fill="#ff3333" xmlns="http://www.w3.org/2000/svg"><path d="M10 16S1 10 1 5a4 4 0 0 1 9-1 4 4 0 0 1 9 1c0 5-9 11-9 11z"/></svg>
@@ -914,6 +943,56 @@ window.addEventListener('keyup',e=>{ keys[mapKey(e.key)]=false; });
 let WORLD_SEED=Math.floor(Math.random()*0xFFFFFF);
 function makeRng(seed){let s=seed>>>0;return()=>{s^=s<<13;s^=s>>>17;s^=s<<5;return(s>>>0)/0xFFFFFFFF;};}
 function chunkSeed(cx,cy){return Math.imul(cx^WORLD_SEED,374761393)^Math.imul(cy^(WORLD_SEED*7),1234567891);}
+
+// ── Mobile detection + joystick ──────────────────────────────────────────
+const isMobile = /Android|iPhone|iPad|iPod|Touch/i.test(navigator.userAgent)
+               || navigator.maxTouchPoints > 1;
+
+let joystickActive=false, joystickX=0, joystickY=0;
+const JOY_MAX=33; // max knob offset px
+
+function initJoystick(){
+  if(!isMobile) return;
+  document.getElementById('joystick-wrap').style.display='block';
+  const base=document.getElementById('joystick-base');
+  const knob=document.getElementById('joystick-knob');
+  let startX=0,startY=0,tid=null;
+
+  function onStart(e){
+    e.preventDefault();
+    const touch=e.touches[0];
+    const rect=base.getBoundingClientRect();
+    startX=rect.left+rect.width/2;
+    startY=rect.top+rect.height/2;
+    tid=touch.identifier;
+    joystickActive=true;
+    onMove(e);
+  }
+  function onMove(e){
+    e.preventDefault();
+    for(const t of e.touches){
+      if(t.identifier===tid){
+        const dx=t.clientX-startX, dy=t.clientY-startY;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        const clamped=Math.min(dist,JOY_MAX);
+        const angle=Math.atan2(dy,dx);
+        const ox=Math.cos(angle)*clamped, oy=Math.sin(angle)*clamped;
+        knob.style.transform=`translate(calc(-50% + ${ox}px), calc(-50% + ${oy}px))`;
+        joystickX=dx/Math.max(dist,1)*Math.min(dist/JOY_MAX,1);
+        joystickY=dy/Math.max(dist,1)*Math.min(dist/JOY_MAX,1);
+      }
+    }
+  }
+  function onEnd(e){
+    e.preventDefault();
+    joystickActive=false; joystickX=0; joystickY=0;
+    knob.style.transform='translate(-50%,-50%)';
+  }
+  base.addEventListener('touchstart',onStart,{passive:false});
+  window.addEventListener('touchmove',onMove,{passive:false});
+  window.addEventListener('touchend',onEnd,{passive:false});
+  window.addEventListener('touchcancel',onEnd,{passive:false});
+}
 
 // ── World gen ──────────────────────────────────────────────────────────────
 function generateChunk(cx,cy){
@@ -1507,6 +1586,7 @@ function startGame(){
   wasInHeal=false;
   playerHP=3; updateHPBar();
   npcs.length=0; bullets.length=0; lastNpcSpawn=performance.now()-5000;
+  initJoystick();
   gameRunning=true;
   requestAnimationFrame(gameLoop);
 }
@@ -1768,6 +1848,7 @@ function gameLoop(){
   if(keys['s']||keys['arrowdown']) dy+=1;
   if(keys['a']||keys['arrowleft']) dx-=1;
   if(keys['d']||keys['arrowright'])dx+=1;
+  if(joystickActive){ dx+=joystickX; dy+=joystickY; }
   if(dx&&dy){dx*=.707;dy*=.707;}
   // accelerate toward input
   pvx+=dx*ICE_ACCEL;
