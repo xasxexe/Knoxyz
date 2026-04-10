@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>KNOXYZ</title>
 <meta name="description" content="Knoxyz game — explore infinite dark corridors and collect rare crystals.">
 <meta property="og:title" content="KNOXYZ">
@@ -905,7 +905,11 @@ let W,H;
 function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;}
 resize(); window.addEventListener('resize',resize);
 
-const TILE=40,CHUNK=24,CS=TILE*CHUNK,CRYSTAL_RARITY=200;
+// ── Mobile detection ──────────────────────────────────────────────────────
+const isMobile = /Android|iPhone|iPad|iPod|Touch/i.test(navigator.userAgent)
+               || navigator.maxTouchPoints > 1;
+
+const TILE=isMobile?28:40,CHUNK=24,CS=TILE*CHUNK,CRYSTAL_RARITY=200;
 const CCOLORS={g:'#00ff88',y:'#ffd700',p:'#bf5fff'};
 
 const chunkMap=new Map(),crystals=[],particles=[];
@@ -943,10 +947,6 @@ window.addEventListener('keyup',e=>{ keys[mapKey(e.key)]=false; });
 let WORLD_SEED=Math.floor(Math.random()*0xFFFFFF);
 function makeRng(seed){let s=seed>>>0;return()=>{s^=s<<13;s^=s>>>17;s^=s<<5;return(s>>>0)/0xFFFFFFFF;};}
 function chunkSeed(cx,cy){return Math.imul(cx^WORLD_SEED,374761393)^Math.imul(cy^(WORLD_SEED*7),1234567891);}
-
-// ── Mobile detection + joystick ──────────────────────────────────────────
-const isMobile = /Android|iPhone|iPad|iPod|Touch/i.test(navigator.userAgent)
-               || navigator.maxTouchPoints > 1;
 
 let joystickActive=false, joystickX=0, joystickY=0;
 const JOY_MAX=33; // max knob offset px
