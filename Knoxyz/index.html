@@ -7,8 +7,8 @@
 <meta name="description" content="Knoxyz game — explore infinite dark corridors and collect rare crystals.">
 <meta property="og:title" content="KNOXYZ">
 <meta property="og:description" content="Knoxyz game — explore infinite dark corridors and collect rare crystals.">
-<meta property="og:image" content="https://xasxexe.github.io/Knoxyz/Knoxyz/knoxyz.jpg">
-<meta property="og:url" content="https://xasxexe.github.io/Knoxyz/Knoxyz/">
+<meta property="og:image" content="https://xasxexe.github.io/Knoxyz/knoxyz.jpg">
+<meta property="og:url" content="https://xasxexe.github.io/Knoxyz/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="KNOXYZ">
@@ -640,14 +640,20 @@ function bfsPath(startWx,startWy,goalWx,goalWy){
 // ── NPC system ─────────────────────────────────────────────────────────────
 const npcs=[],bullets=[];
 let playerHP=3,lastNpcSpawn=0;
-const NPC_SPEED=1.9,BULLET_SPEED=4.5;
+const NPC_SPEED=1.9,BULLET_SPEED=4.5,FAN_ANGLE=.2;   // FAN_ANGLE — угол между пулями веера (рад)
 
 function spawnNpc(){
-  const angle=Math.random()*Math.PI*2,dist=400+Math.random()*300;
-  const wx=player.wx+Math.cos(angle)*dist,wy=player.wy+Math.sin(angle)*dist;
-  if(!tileAtWorld(wx,wy))return;
-  npcs.push({wx,wy,r:14,lastShot:0,path:[],lastBfs:performance.now()-Math.random()*BFS_CACHE_TTL});
+  for(let tries=0;tries<12;tries++){                       // до 12 попыток найти подходящее место
+    const angle=Math.random()*Math.PI*2,dist=400+Math.random()*300;
+    const wx=player.wx+Math.cos(angle)*dist,wy=player.wy+Math.sin(angle)*dist;
+    if(!npcCanMove(wx,wy,14+6))continue;                   // всё тело + запас 6px от стен и зелёных зон
+    if(!bfsPath(wx,wy,player.wx,player.wy).length)continue; // и до игрока должен быть путь (не запертая ниша)
+    npcs.push({wx,wy,r:14,lastShot:0,path:[],stuck:0,lastBfs:performance.now()-Math.random()*BFS_CACHE_TTL});
+    return;
+  }
 }
+// сдвиг НПС с проверкой стен (по осям), чтобы толчки не заталкивали его в стену
+function npcNudge(n,dx,dy){if(npcCanMove(n.wx+dx,n.wy,n.r))n.wx+=dx;if(npcCanMove(n.wx,n.wy+dy,n.r))n.wy+=dy;}
 
 function npcCanMove(wx,wy,r){
   const m=r-1;
@@ -659,6 +665,7 @@ function updateNpcs(t){
     const n=npcs[i];
     const ddx=n.wx-player.wx,ddy=n.wy-player.wy;
     if(ddx*ddx+ddy*ddy>1200*1200){npcs.splice(i,1);continue;}
+    if(!npcCanMove(n.wx,n.wy,n.r)){n.stuck+=DT;if(n.stuck>30){npcs.splice(i,1);continue;}}else n.stuck=0;   // застрял в стене → исчезает
 
     // ── BFS pathfinding ────────────────────────────────────────────────────
     const dist=Math.sqrt(ddx*ddx+ddy*ddy);
@@ -695,22 +702,23 @@ function updateNpcs(t){
     if(dd<n.r+player.r&&dd>0){
       const ov=n.r+player.r-dd,ux=dx/dd,uy=dy/dd;
       pvx+=ux*(ov+TILE*3)*0.08*DT;pvy+=uy*(ov+TILE*3)*0.08*DT;
-      n.wx-=ux*ov*0.3;n.wy-=uy*ov*0.3;
+      npcNudge(n,-ux*ov*0.3,-uy*ov*0.3);
     }
 
     // NPC-NPC separation
     for(let j=i-1;j>=0;j--){
       const m=npcs[j];
       const ex=n.wx-m.wx,ey=n.wy-m.wy,ed=Math.sqrt(ex*ex+ey*ey);
-      if(ed<n.r+m.r&&ed>0){const sep=(n.r+m.r-ed)*0.5,ux=ex/ed,uy=ey/ed;n.wx+=ux*sep;n.wy+=uy*sep;m.wx-=ux*sep;m.wy-=uy*sep;}
+      if(ed<n.r+m.r&&ed>0){const sep=(n.r+m.r-ed)*0.5,ux=ex/ed,uy=ey/ed;npcNudge(n,ux*sep,uy*sep);npcNudge(m,-ux*sep,-uy*sep);}
     }
 
     // shoot
     if(t-n.lastShot>1000){
       n.lastShot=t;
-      for(let b=0;b<3;b++){
-        const spread=(Math.random()-.5)*0.3,a=Math.atan2(player.wy-n.wy,player.wx-n.wx)+spread;
-        bullets.push({wx:n.wx,wy:n.wy,vx:Math.cos(a)*BULLET_SPEED,vy:Math.sin(a)*BULLET_SPEED,life:140});
+      const aim=Math.atan2(player.wy-n.wy,player.wx-n.wx);
+      for(let k=-1;k<=1;k++){                              // k=0 — центральная (впереди), ±1 — боковые
+        const a=aim+k*FAN_ANGLE,R=n.r+12+(k===0?10:0);     // точка вылета лежит на дуге, центральная дальше
+        bullets.push({wx:n.wx+Math.cos(a)*R,wy:n.wy+Math.sin(a)*R,vx:Math.cos(a)*BULLET_SPEED,vy:Math.sin(a)*BULLET_SPEED,life:140});
       }
     }
   }
