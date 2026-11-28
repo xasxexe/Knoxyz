@@ -203,6 +203,7 @@
   </div>
 </div>
 
+<script src="biomes.js"></script>
 <script>
 // ── Supabase ───────────────────────────────────────────────────────────────
 const SB_URL='https://isbanpioueifclkgwgxz.supabase.co';
@@ -443,10 +444,12 @@ function resizeStars(){SW=starsCanvas.width=window.innerWidth;SH=starsCanvas.hei
 resizeStars();window.addEventListener('resize',resizeStars);
 const stars=Array.from({length:120},()=>({x:Math.random()*2000,y:Math.random()*2000,r:0.5+Math.random()*1.8,vx:-0.08-Math.random()*0.18,vy:-0.03+Math.random()*0.06-0.015,alpha:0.15+Math.random()*0.55}));
 let starsRunning=false;
+let lastStarT=0;
 function drawStars(){
+  const sn=performance.now(),sd=lastStarT?Math.min((sn-lastStarT)/16.667,3):1;lastStarT=sn;
   sctx.clearRect(0,0,SW,SH);
   for(const s of stars){
-    s.x+=s.vx;s.y+=s.vy;
+    s.x+=s.vx*sd;s.y+=s.vy*sd;
     if(s.x<-10)s.x=SW+10;if(s.x>SW+10)s.x=-10;
     if(s.y<-10)s.y=SH+10;if(s.y>SH+10)s.y=-10;
     sctx.beginPath();sctx.arc(s.x,s.y,s.r,0,Math.PI*2);
@@ -454,8 +457,8 @@ function drawStars(){
   }
   if(starsRunning)requestAnimationFrame(drawStars);
 }
-function startStars(){if(!starsRunning){starsRunning=true;drawStars();}}
-function stopStars(){starsRunning=false;}
+function startStars(){starsCanvas.style.opacity=1;lastSO='';if(!starsRunning){starsRunning=true;drawStars();}}
+function stopStars(){starsRunning=false;lastStarT=0;}
 startStars();
 
 // ── Game canvas ────────────────────────────────────────────────────────────
@@ -578,13 +581,18 @@ function generateChunk(cx,cy){
   chunkMap.set(cx+','+cy,data);crystals.push(...cc);return data;
 }
 
-function getChunk(cx,cy){const k=cx+','+cy;if(!chunkMap.has(k))generateChunk(cx,cy);return chunkMap.get(k);}
+let _gcx=1e9,_gcy=1e9,_gcd=null;   // кэш последнего чанка: большинство запросов идёт в один и тот же чанк
+function getChunk(cx,cy){
+  if(cx===_gcx&&cy===_gcy)return _gcd;
+  let d=chunkMap.get(cx+','+cy);if(!d)d=generateChunk(cx,cy);
+  _gcx=cx;_gcy=cy;_gcd=d;return d;
+}
 function tileAtWorld(wx,wy){const cx=Math.floor(wx/CS),cy=Math.floor(wy/CS),d=getChunk(cx,cy),tx=Math.max(0,Math.min(CHUNK-1,Math.floor((wx-cx*CS)/TILE))),ty=Math.max(0,Math.min(CHUNK-1,Math.floor((wy-cy*CS)/TILE)));return d.tiles[ty*CHUNK+tx]===1?1:0;}
 function healAtWorld(wx,wy){const cx=Math.floor(wx/CS),cy=Math.floor(wy/CS),d=getChunk(cx,cy),tx=Math.max(0,Math.min(CHUNK-1,Math.floor((wx-cx*CS)/TILE))),ty=Math.max(0,Math.min(CHUNK-1,Math.floor((wy-cy*CS)/TILE)));return d.healSet&&d.healSet.has(tx+','+ty);}
 function redAtWorld(wx,wy){const cx=Math.floor(wx/CS),cy=Math.floor(wy/CS),d=getChunk(cx,cy),tx=Math.max(0,Math.min(CHUNK-1,Math.floor((wx-cx*CS)/TILE))),ty=Math.max(0,Math.min(CHUNK-1,Math.floor((wy-cy*CS)/TILE)));return d.redSet&&d.redSet.has(tx+','+ty);}
 function tileNeighbour(data,cx,cy,tx,ty){if(tx<0)return getChunk(cx-1,cy).tiles[ty*CHUNK+(CHUNK-1)];if(tx>=CHUNK)return getChunk(cx+1,cy).tiles[ty*CHUNK+0];if(ty<0)return getChunk(cx,cy-1).tiles[(CHUNK-1)*CHUNK+tx];if(ty>=CHUNK)return getChunk(cx,cy+1).tiles[0*CHUNK+tx];return data.tiles[ty*CHUNK+tx];}
 function tryMove(dx,dy){const r=player.r-1,nx=player.wx+dx,ny=player.wy+dy;if(tileAtWorld(nx+r,player.wy-r)&&tileAtWorld(nx+r,player.wy+r)&&tileAtWorld(nx-r,player.wy-r)&&tileAtWorld(nx-r,player.wy+r))player.wx=nx;if(tileAtWorld(player.wx+r,ny-r)&&tileAtWorld(player.wx+r,ny+r)&&tileAtWorld(player.wx-r,ny-r)&&tileAtWorld(player.wx-r,ny+r))player.wy=ny;}
-function updateCamera(){camX+=(player.wx-W/2-camX)*.1;camY+=(player.wy-H/2-camY)*.1;}
+function updateCamera(){const f=1-Math.pow(.9,DT);camX+=(player.wx-W/2-camX)*f;camY+=(player.wy-H/2-camY)*f;}
 function getVisible(){const list=[],x0=Math.floor(camX/CS)-1,y0=Math.floor(camY/CS)-1,x1=Math.floor((camX+W)/CS)+1,y1=Math.floor((camY+H)/CS)+1;for(let cy=y0;cy<=y1;cy++)for(let cx=x0;cx<=x1;cx++)list.push({cx,cy,data:getChunk(cx,cy)});return list;}
 
 // ── NPC BFS Pathfinding ────────────────────────────────────────────────────
@@ -599,40 +607,34 @@ function tileWalkable(tx,ty){
   return tileAtWorld(wx,wy)===1&&!healAtWorld(wx,wy);
 }
 
+const BFS_R=64,BFS_W=BFS_R*2+1,BFS_N=BFS_W*BFS_W;
+const bfsPrev=new Int32Array(BFS_N),bfsSeen=new Uint32Array(BFS_N),bfsQ=new Int32Array(BFS_N);
+let bfsStamp=0;
+const BFS_DIRS=[0,-1,0,1,-1,0,1,0,1,1,-1,1,1,-1,-1,-1];
 function bfsPath(startWx,startWy,goalWx,goalWy){
-  const {tx:sx,ty:sy}=worldToTile(startWx,startWy);
-  const {tx:gx,ty:gy}=worldToTile(goalWx,goalWy);
+  const{tx:sx,ty:sy}=worldToTile(startWx,startWy),{tx:gx,ty:gy}=worldToTile(goalWx,goalWy);
   if(sx===gx&&sy===gy)return[];
-
-  const key=(x,y)=>x+','+y;
-  const visited=new Map([[key(sx,sy),null]]);
-  const queue=[{x:sx,y:sy}];
-  const dirs=[{dx:0,dy:-1},{dx:0,dy:1},{dx:-1,dy:0},{dx:1,dy:0},{dx:1,dy:1},{dx:-1,dy:1},{dx:1,dy:-1},{dx:-1,dy:-1}];
-  let found=null;
-
-  outer: while(queue.length){
-    const cur=queue.shift();
-    if(Math.abs(cur.x-sx)+Math.abs(cur.y-sy)>BFS_MAX)continue;
-    for(const {dx,dy} of dirs){
-      const nx=cur.x+dx,ny=cur.y+dy;
-      const k=key(nx,ny);
-      if(visited.has(k))continue;
-      if(dx!==0&&dy!==0){if(!tileWalkable(cur.x+dx,cur.y)||!tileWalkable(cur.x,cur.y+dy))continue;}
+  if(Math.abs(gx-sx)>BFS_R||Math.abs(gy-sy)>BFS_R)return[];
+  const stamp=++bfsStamp,idx=(x,y)=>(y-sy+BFS_R)*BFS_W+(x-sx+BFS_R);
+  let head=0,tail=0,found=false,work=0;
+  const s0=idx(sx,sy),goal=idx(gx,gy);
+  bfsSeen[s0]=stamp;bfsPrev[s0]=-1;bfsQ[tail++]=s0;
+  while(head<tail&&!found&&work<6000){
+    const cur=bfsQ[head++],cx=cur%BFS_W+sx-BFS_R,cy=((cur/BFS_W)|0)+sy-BFS_R;work++;
+    for(let d=0;d<16;d+=2){
+      const dx=BFS_DIRS[d],dy=BFS_DIRS[d+1],nx=cx+dx,ny=cy+dy;
+      if(Math.abs(nx-sx)>BFS_R||Math.abs(ny-sy)>BFS_R)continue;
+      const ni=idx(nx,ny);if(bfsSeen[ni]===stamp)continue;
+      if(dx&&dy&&(!tileWalkable(cx+dx,cy)||!tileWalkable(cx,cy+dy)))continue;
       if(!tileWalkable(nx,ny))continue;
-      visited.set(k,{x:cur.x,y:cur.y});
-      if(nx===gx&&ny===gy){found={x:nx,y:ny};break outer;}
-      queue.push({x:nx,y:ny});
+      bfsSeen[ni]=stamp;bfsPrev[ni]=cur;bfsQ[tail++]=ni;
+      if(ni===goal){found=true;break}
     }
   }
   if(!found)return[];
-
-  // reconstruct path
-  const path=[];let cur=found;
-  while(cur&&!(cur.x===sx&&cur.y===sy)){
-    path.unshift({wx:cur.x*TILE+TILE/2,wy:cur.y*TILE+TILE/2});
-    cur=visited.get(key(cur.x,cur.y));
-  }
-  return path;
+  const path=[];
+  for(let i=goal;i!==s0&&i!==-1;i=bfsPrev[i])path.push({wx:(i%BFS_W+sx-BFS_R)*TILE+TILE/2,wy:(((i/BFS_W)|0)+sy-BFS_R)*TILE+TILE/2});
+  return path.reverse();
 }
 
 // ── NPC system ─────────────────────────────────────────────────────────────
@@ -644,7 +646,7 @@ function spawnNpc(){
   const angle=Math.random()*Math.PI*2,dist=400+Math.random()*300;
   const wx=player.wx+Math.cos(angle)*dist,wy=player.wy+Math.sin(angle)*dist;
   if(!tileAtWorld(wx,wy))return;
-  npcs.push({wx,wy,r:14,lastShot:0,path:[],lastBfs:0});
+  npcs.push({wx,wy,r:14,lastShot:0,path:[],lastBfs:performance.now()-Math.random()*BFS_CACHE_TTL});
 }
 
 function npcCanMove(wx,wy,r){
@@ -682,7 +684,7 @@ function updateNpcs(t){
       const td=Math.sqrt(tdx*tdx+tdy*tdy);
       if(td>0.5){
         const ux=tdx/td,uy=tdy/td;
-        const nx2=n.wx+ux*NPC_SPEED,ny2=n.wy+uy*NPC_SPEED;
+        const nx2=n.wx+ux*NPC_SPEED*DT,ny2=n.wy+uy*NPC_SPEED*DT;
         if(npcCanMove(nx2,n.wy,n.r))n.wx=nx2;
         if(npcCanMove(n.wx,ny2,n.r))n.wy=ny2;
       }
@@ -692,7 +694,7 @@ function updateNpcs(t){
     const dx=player.wx-n.wx,dy=player.wy-n.wy,dd=Math.sqrt(dx*dx+dy*dy);
     if(dd<n.r+player.r&&dd>0){
       const ov=n.r+player.r-dd,ux=dx/dd,uy=dy/dd;
-      pvx+=ux*(ov+TILE*3)*0.08;pvy+=uy*(ov+TILE*3)*0.08;
+      pvx+=ux*(ov+TILE*3)*0.08*DT;pvy+=uy*(ov+TILE*3)*0.08*DT;
       n.wx-=ux*ov*0.3;n.wy-=uy*ov*0.3;
     }
 
@@ -717,10 +719,16 @@ function updateNpcs(t){
 function updateBullets(){
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
-    b.wx+=b.vx;b.wy+=b.vy;b.life--;
-    if(b.life<=0||!tileAtWorld(b.wx,b.wy)||healAtWorld(b.wx,b.wy)){bullets.splice(i,1);continue;}
-    const dx=b.wx-player.wx,dy=b.wy-player.wy;
-    if(dx*dx+dy*dy<(player.r+5)**2){bullets.splice(i,1);hitPlayer();}
+    b.life-=DT;
+    const n=Math.max(1,Math.ceil(Math.hypot(b.vx,b.vy)*DT/8));
+    let dead=b.life<=0;
+    for(let k=0;k<n&&!dead;k++){
+      b.wx+=b.vx*DT/n;b.wy+=b.vy*DT/n;
+      if(!tileAtWorld(b.wx,b.wy)||healAtWorld(b.wx,b.wy)){dead=true;break}
+      const dx=b.wx-player.wx,dy=b.wy-player.wy;
+      if(dx*dx+dy*dy<(player.r+5)**2){dead=true;hitPlayer();break}
+    }
+    if(dead)bullets.splice(i,1);
   }
 }
 
@@ -848,34 +856,73 @@ function buildWhiteWallPath(vis){
     }
   }
 }
-function drawWalls(vis){ctx.save();buildWhiteWallPath(vis);ctx.lineWidth=10;ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.shadowColor='#fff';ctx.shadowBlur=18;ctx.stroke();buildWhiteWallPath(vis);ctx.lineWidth=2;ctx.strokeStyle='#ffffff';ctx.shadowColor='rgba(200,230,255,0.7)';ctx.shadowBlur=5;ctx.stroke();ctx.restore();}
+// ═══ Биомы живут в отдельном файле biomes.js. Здесь — только вызовы его API; без файла игра работает как обычно ═══
+const biomes=window.Biomes||{coverage:0,reset(){},update(){},drawBackground(){},drawForeground(){},drawTrail(){},wallClass:()=>0,
+  wallStyle:()=>({core:'rgb(255,255,255)',glow:'rgba(200,230,255,0.75)',soft:'rgba(255,255,255,0.07)'})};
+const view={camX:0,camY:0,W:0,H:0},trailPl={x:0,y:0,vx:0,vy:0,r:0};   // данные игры для биомов
+var lastSO='';                                                          // прозрачность замороженных звёзд меню над игрой
+function setStarsOpacity(o){const s=o.toFixed(2);if(s!==lastSO){lastSO=s;starsCanvas.style.opacity=s}}
 
-function buildZonePath(vis,setKey){
-  ctx.beginPath();
-  for(const{cx,cy,data}of vis){
-    const zset=data[setKey];if(!zset||zset.size===0)continue;
-    const ox=cx*CS-camX,oy=cy*CS-camY;
-    for(const key of zset){
-      const[tx,ty]=key.split(',').map(Number);
-      const sx=ox+tx*TILE,sy=oy+ty*TILE;
-      const isZ=(ntx,nty)=>{if(ntx<0||ntx>=CHUNK||nty<0||nty>=CHUNK)return false;return zset.has(ntx+','+nty);};
-      if(!isZ(tx,ty-1)){ctx.moveTo(sx,sy);ctx.lineTo(sx+TILE,sy);}
-      if(!isZ(tx,ty+1)){ctx.moveTo(sx,sy+TILE);ctx.lineTo(sx+TILE,sy+TILE);}
-      if(!isZ(tx-1,ty)){ctx.moveTo(sx,sy);ctx.lineTo(sx,sy+TILE);}
-      if(!isZ(tx+1,ty)){ctx.moveTo(sx+TILE,sy);ctx.lineTo(sx+TILE,sy+TILE);}
-    }
+// ── стены: геометрия считается ОДИН раз на чанк (Path2D в мировых координатах), цвет задаёт система биомов ──
+const inView=(cx,cy)=>!(cx*CS>camX+W+40||cx*CS+CS<camX-40||cy*CS>camY+H+40||cy*CS+CS<camY-40);
+function buildChunkWalls(cx,cy,data){
+  const segs={},all=new Path2D(),tally={};
+  for(let ty=0;ty<CHUNK;ty++)for(let tx=0;tx<CHUNK;tx++){
+    if(data.tiles[ty*CHUNK+tx]!==1)continue;
+    const u=tileNeighbour(data,cx,cy,tx,ty-1)===0,d=tileNeighbour(data,cx,cy,tx,ty+1)===0,
+          l=tileNeighbour(data,cx,cy,tx-1,ty)===0,r=tileNeighbour(data,cx,cy,tx+1,ty)===0;
+    if(!(u||d||l||r))continue;
+    const wx=cx*CS+tx*TILE,wy=cy*CS+ty*TILE,cls=biomes.wallClass(wx+TILE/2,wy+TILE/2);
+    const p=segs[cls]||(segs[cls]=new Path2D());
+    const seg=(x1,y1,x2,y2)=>{p.moveTo(x1,y1);p.lineTo(x2,y2);all.moveTo(x1,y1);all.lineTo(x2,y2)};
+    if(u)seg(wx,wy,wx+TILE,wy);
+    if(d)seg(wx,wy+TILE,wx+TILE,wy+TILE);
+    if(l)seg(wx,wy,wx,wy+TILE);
+    if(r)seg(wx+TILE,wy,wx+TILE,wy+TILE);
+    tally[cls]=(tally[cls]||0)+1;
   }
+  let main=0,mc=0;for(const k in tally)if(tally[k]>mc){mc=tally[k];main=+k}
+  return{segs,all,main};
+}
+function drawWalls(vis){
+  ctx.save();ctx.translate(-camX,-camY);
+  const vv=[];for(const ch of vis){if(!inView(ch.cx,ch.cy))continue;if(!ch.data.walls)ch.data.walls=buildChunkWalls(ch.cx,ch.cy,ch.data);vv.push(ch.data.walls)}
+  for(const w of vv){const st=biomes.wallStyle(w.main);                    // свечение: два прохода с размытием на чанк
+    ctx.lineWidth=10;ctx.strokeStyle=st.soft;ctx.shadowColor=st.core;ctx.shadowBlur=18;ctx.stroke(w.all);
+    ctx.lineWidth=2;ctx.strokeStyle=st.core;ctx.shadowColor=st.glow;ctx.shadowBlur=5;ctx.stroke(w.all);}
+  ctx.shadowBlur=0;ctx.lineWidth=2;                                       // точный цвет линии без размытия
+  for(const w of vv)for(const k in w.segs){ctx.strokeStyle=biomes.wallStyle(+k).core;ctx.stroke(w.segs[k])}
+  ctx.restore();
+}
+
+// ── красные/зелёные зоны: тоже кэшируются на чанк ──
+function zonePaths(cx,cy,data){
+  const out={};
+  for(const key of['redSet','healSet']){
+    const zs=data[key],p=new Path2D();
+    if(zs&&zs.size){
+      const ox=cx*CS,oy=cy*CS,isZ=(a,b)=>a>=0&&a<CHUNK&&b>=0&&b<CHUNK&&zs.has(a+','+b);
+      for(const k of zs){
+        const[tx,ty]=k.split(',').map(Number),sx=ox+tx*TILE,sy=oy+ty*TILE;
+        if(!isZ(tx,ty-1)){p.moveTo(sx,sy);p.lineTo(sx+TILE,sy)}
+        if(!isZ(tx,ty+1)){p.moveTo(sx,sy+TILE);p.lineTo(sx+TILE,sy+TILE)}
+        if(!isZ(tx-1,ty)){p.moveTo(sx,sy);p.lineTo(sx,sy+TILE)}
+        if(!isZ(tx+1,ty)){p.moveTo(sx+TILE,sy);p.lineTo(sx+TILE,sy+TILE)}
+      }
+    }
+    out[key]=zs&&zs.size?p:null;
+  }
+  return out;
 }
 function drawZones(vis,setKey,colorBright,glowColor,glowAlpha){
-  ctx.save();
-  // pass 1 — wide soft glow
-  buildZonePath(vis,setKey);
-  ctx.lineWidth=10;ctx.strokeStyle=glowAlpha||'rgba(255,30,30,0.1)';
-  ctx.shadowColor=colorBright;ctx.shadowBlur=20;ctx.stroke();
-  // pass 2 — crisp line
-  buildZonePath(vis,setKey);
-  ctx.lineWidth=2;ctx.strokeStyle=colorBright;
-  ctx.shadowColor=glowColor||colorBright;ctx.shadowBlur=6;ctx.stroke();
+  ctx.save();ctx.translate(-camX,-camY);
+  for(const{cx,cy,data}of vis){
+    if(!inView(cx,cy))continue;
+    if(!data.zp)data.zp=zonePaths(cx,cy,data);
+    const p=data.zp[setKey];if(!p)continue;
+    ctx.lineWidth=10;ctx.strokeStyle=glowAlpha;ctx.shadowColor=colorBright;ctx.shadowBlur=20;ctx.stroke(p);
+    ctx.lineWidth=2;ctx.strokeStyle=colorBright;ctx.shadowColor=glowColor;ctx.shadowBlur=6;ctx.stroke(p);
+  }
   ctx.restore();
 }
 
@@ -935,7 +982,7 @@ function flashCounter(type,sessionVal,totalVal){
 }
 
 function spawnParticles(wx,wy,col){for(let i=0;i<10;i++){const a=Math.random()*Math.PI*2,sp=.8+Math.random()*3;particles.push({x:wx,y:wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,color:col,life:1,r:2+Math.random()*2});}}
-function updateParticles(){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=.9;p.vy*=.9;p.life-=.04;if(p.life<=0){particles.splice(i,1);continue;}ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.globalAlpha=p.life*.8;ctx.fill();ctx.globalAlpha=1;}}
+function updateParticles(){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx*DT;p.y+=p.vy*DT;p.vx*=Math.pow(.9,DT);p.vy*=Math.pow(.9,DT);p.life-=.04*DT;if(p.life<=0){particles.splice(i,1);continue;}ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.r*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.globalAlpha=p.life*.8;ctx.fill();ctx.globalAlpha=1;}}
 
 function checkCrystals(){
   for(const c of crystals){
@@ -985,7 +1032,7 @@ function exitToMenu(){
 }
 
 function startGame(){
-  chunkMap.clear();crystals.length=0;particles.length=0;
+  chunkMap.clear();_gcx=1e9;crystals.length=0;particles.length=0;
   // FIX: reset all counts including r
   counts.g=0;counts.y=0;counts.p=0;counts.r=0;
   WORLD_SEED=Math.floor(Math.random()*0xFFFFFF);
@@ -997,7 +1044,7 @@ function startGame(){
   for(let i=0;i<CHUNK*CHUNK;i++)if(sc.tiles[i]===1)spawnFloor.push(i);
   const idx=spawnFloor[Math.floor(Math.random()*spawnFloor.length)];
   player.wx=(idx%CHUNK)*TILE+TILE/2;player.wy=Math.floor(idx/CHUNK)*TILE+TILE/2;
-  camX=player.wx-W/2;camY=player.wy-H/2;
+  camX=player.wx-W/2;camY=player.wy-H/2;biomes.reset({seed:WORLD_SEED,cell:CS*16,radius:CS*3,fade:CS*1.5,startX:player.wx,startY:player.wy});
 
   document.getElementById('menu').style.display='none';
   stopStars();
@@ -1020,6 +1067,7 @@ function startGame(){
   playerHP=3;updateHPBar();
   npcs.length=0;bullets.length=0;lastNpcSpawn=performance.now()-5000;
   initJoystick();
+  lastFrame=0;
   gameRunning=true;
   requestAnimationFrame(gameLoop);
 }
@@ -1028,8 +1076,14 @@ function startGame(){
 let pvx=0,pvy=0;
 const ICE_ACCEL=0.38,ICE_FRICTION=0.80;
 
+const GAME_SPEED=2; // скорость всей игры (1 = как было, 2 = вдвое быстрее)
+let DT=1,lastFrame=0; // DT = прошедшее время в «кадрах по 60 Гц»: 1 на 60 Гц, 0.2 на 300 Гц
 function gameLoop(now){
   if(!gameRunning)return;
+  const tNow=now||performance.now();
+  const rawDt=lastFrame?Math.min(Math.max((tNow-lastFrame)/16.667,0.05),3):1;
+  const dt=rawDt*GAME_SPEED;
+  lastFrame=tNow;DT=dt;
   const sp=player.speed;let dx=0,dy=0;
   if(keys['w']||keys['arrowup'])dy-=1;
   if(keys['s']||keys['arrowdown'])dy+=1;
@@ -1037,25 +1091,32 @@ function gameLoop(now){
   if(keys['d']||keys['arrowright'])dx+=1;
   if(joystickActive){dx+=joystickX;dy+=joystickY;}
   if(dx&&dy){dx*=.707;dy*=.707;}
-  pvx+=dx*ICE_ACCEL;pvy+=dy*ICE_ACCEL;
+  pvx+=dx*ICE_ACCEL*dt;pvy+=dy*ICE_ACCEL*dt;
   const len=Math.sqrt(pvx*pvx+pvy*pvy);
   if(len>sp){pvx=pvx/len*sp;pvy=pvy/len*sp;}
-  if(!dx&&!dy){pvx*=ICE_FRICTION;pvy*=ICE_FRICTION;}
+  if(!dx&&!dy){const f=Math.pow(ICE_FRICTION,dt);pvx*=f;pvy*=f;}
   if(Math.abs(pvx)<0.05)pvx=0;if(Math.abs(pvy)<0.05)pvy=0;
-  if(pvx||pvy)tryMove(pvx,pvy);
+  if(pvx||pvy){const mx=pvx*dt,my=pvy*dt,n=Math.max(1,Math.ceil(Math.max(Math.abs(mx),Math.abs(my))/6));for(let k=0;k<n;k++)tryMove(mx/n,my/n);}
   updateCamera();
 
+  const t=tNow;
+  view.camX=camX;view.camY=camY;view.W=W;view.H=H;
+  biomes.update(dt,t,player.wx,player.wy);
   ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+  biomes.drawBackground(ctx,view,t);
+  setStarsOpacity(1-biomes.coverage);                            // звёзды из меню гаснут, когда фон биома закрывает небо
   const vis=getVisible();
-  const t=now||performance.now();
-  if(t-lastNpcSpawn>3000&&Math.random()<0.003){lastNpcSpawn=t;spawnNpc();}
+  if(t-lastNpcSpawn>3000&&Math.random()<0.003*rawDt){lastNpcSpawn=t;spawnNpc();}
   updateNpcs(t);updateBullets();
   drawWalls(vis);
   drawZones(vis,'redSet','#ff3333','rgba(255,60,60,0.9)','rgba(255,30,30,0.1)');
   drawZones(vis,'healSet','#00ff66','rgba(0,255,100,0.9)','rgba(0,255,100,0.1)');
   drawCrystals();updateParticles();
   drawNpcs();drawBullets();
+  trailPl.x=player.wx;trailPl.y=player.wy;trailPl.vx=pvx;trailPl.vy=pvy;trailPl.r=player.r;
+  biomes.drawTrail(ctx,view,dt,trailPl);
   drawPlayer();checkCrystals();checkRedWall();checkHealZone();
+  biomes.drawForeground(ctx,view,t);
   requestAnimationFrame(gameLoop);
 }
 
